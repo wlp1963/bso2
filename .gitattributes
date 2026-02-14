@@ -1,0 +1,14 @@
+# Normalize text files and keep binary assets untouched
+* text=auto
+
+# Source/docs
+*.asm text eol=lf
+*.inc text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.bat text eol=crlf
+
+# Binary artifacts
+*.pdf binary
+*.bin binary
+*.zip binary

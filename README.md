@@ -1,0 +1,100 @@
+# bso2
+
+`bso2` is a serial monitor for the WDC W65C02EDU platform.
+
+It provides boot flow control, memory tools, an interactive mini-assembler, disassembly, execution/resume debug flow, and vector inspection for a 65C02-based system.
+
+## Name
+
+- `bso2` = `Basic System Operations/2`
+- The `/2` references the 6502 lineage.
+- Stylized glyph note: `6` can stand in for lowercase `b`, and `5` can stand in for lowercase `s`.
+- That makes `6502` a visual shorthand for `bso2` (`6`=`b`, `5`=`s`, `0`=`o`, `2`=`/2`).
+
+## Features
+
+- Target CPU: `W65C02` (`CHIP 65C02`)
+- Table-driven command dispatcher
+- Ring-buffer command parser
+- Commands: `Z C W M D U A X R N F Q V H ?`
+- Protected low RAM (`$0000-$03FF`) with force prefix `!`
+- BRK debug context output with previous and next instruction lines
+
+## Repository Layout
+
+- `SRC/bso2.asm`: main monitor source
+- `SRC/macros.inc`: assembler macros
+- `SRC/Makefile`: build/upload/clean targets
+- `DOCS/monitor_usage.html`: detailed command reference
+- `DOCS/monitor_usage.pdf`: printable/offline command reference
+
+## Prerequisites
+
+- WDC toolchain in `PATH`:
+  - `WDC02AS`
+  - `WDCLN`
+- For `make upload`:
+  - Python
+  - `C:\Program Files\wdc\Tools\bin\wdc_interface.py`
+- Serial port in `Makefile` is currently `COM3`
+
+## Quick Start
+
+```powershell
+make -C SRC all
+```
+
+Upload:
+
+```powershell
+make -C SRC upload
+```
+
+Clean:
+
+```powershell
+make -C SRC clean
+```
+
+## Monitor Commands
+
+- `?` short help
+- `H` full help
+- `Z` clear RAM (confirm `Y/N`)
+- `W` warm start to monitor
+- `D [START [END]]` dump memory (`END` inclusive)
+- `U START END` disassemble a 65C02 range (`END` inclusive)
+- `A START [MNEMONIC OPERANDS]` tiny interactive 65C02 assembler (`.` exits)
+- `X START` execute at address
+- `R [A=HH] [X=HH] [Y=HH]` resume last debug context (optional `A/X/Y` overrides)
+- `N` run to next sequential instruction using a temporary RAM breakpoint (`ROM/I/O` targets are rejected)
+- `M [START [B0..B15]]` modify/deposit memory
+- `F START END B0..B15` fill memory with repeating pattern
+- `C SRC_START SRC_END DST_START` copy memory (overlap-safe)
+- `Q` halt with `WAI` (resume via NMI/Reset)
+- `V` print vector chain information
+- `!<CMD> ...` force-enable protected low-RAM access for `F/M/C/A/N`
+
+Notes:
+- In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
+- `A` supports relative-branch target entry via absolute hex address (range checked).
+- `A` supports explicit accumulator syntax such as `INC A`.
+- See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
+
+## Development
+
+- Contributor guide: `CONTRIBUTING.md`
+- Security policy: `SECURITY.md`
+- Community conduct: `CODE_OF_CONDUCT.md`
+- Release checklist: `RELEASING.md`
+
+## Legal
+
+- `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
+- This project is independent and not affiliated with or endorsed by Western Design Center, Inc.
+- This repository does not redistribute WDC tool binaries or WDC ROM images.
+- Third-party references are listed in `THIRD_PARTY_NOTICES.md`.
+
+## License
+
+MIT. See `LICENSE`.
