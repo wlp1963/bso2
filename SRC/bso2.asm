@@ -51,6 +51,9 @@ LED_DDR                 EQU         PIA_DDRA ; DIR REG PORT A
 ; --- INPUT BUFFER/PARSER CONFIG ---
 RBUF_SIZE               EQU         32  ; CONFIGURABLE INPUT RING BUFFER SIZE
 CMD_MAX_LEN             EQU         31  ; MAX COMMAND LENGTH (EXCLUDING NULL)
+SREC_MODE_SKIP          EQU         $00
+SREC_MODE_DATA          EQU         $01
+SREC_MODE_TERM          EQU         $02
 DBG_MODE_JSR            EQU         0
 DBG_MODE_NMI            EQU         1
 DBG_MODE_IRQ            EQU         2
@@ -140,6 +143,11 @@ MOD_COUNT               EQU         MEM_DUMP_CNT ; SCRATCH COUNT FOR INLINE M
 F_COUNT                 EQU         MOD_COUNT
                                         ; SCRATCH COUNT FOR F BYTE PATTERN
 F_PAT_IDX               EQU         CMD_PARSE_NIB ; CURRENT F PATTERN INDEX
+SREC_ADDR_LEN           EQU         F_PAT_IDX ; S-RECORD ADDRESS BYTE COUNT
+SREC_COUNT              EQU         CMD_PARSE_VAL ; S-RECORD BYTE COUNT
+SREC_MODE               EQU         CMD_PARSE_VAL+1 ; S-RECORD RECORD MODE
+SREC_REMAIN             EQU         MOD_COUNT ; S-RECORD DATA+CHECKSUM BYTES LEFT
+SREC_SUM                EQU         BUF_IDX ; S-RECORD CHECKSUM ACCUMULATOR
 
 ; --- DISASSEMBLER ADDRESSING MODE IDS ---
 DISM_IMP                EQU         $00 ; IMPLIED (NO OPERAND)
@@ -752,10 +760,10 @@ CMD_SAVE_LAST:
 ; SUBROUTINE: CMD_PROCESS_IF_READY
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
-; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), R (RESUME), N (NEXT), F (FILL), Q
-; (WAIT), V
+; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), R (RESUME), N (NEXT), F (FILL),
+; L S (S-RECORD LOAD), Q (WAIT), V
 ; (VECTORS), H/? (HELP)
-; PREFIX: ! FORCES LOW-RAM ACCESS FOR PROTECTED COMMANDS (F/M/C/A/N)
+; PREFIX: ! FORCES LOW-RAM ACCESS FOR PROTECTED COMMANDS (F/M/C/A/N/L)
 ; ----------------------------------------------------------------------------
 CMD_PROCESS_IF_READY:
                         LDA         CMD_READY
@@ -1087,6 +1095,371 @@ CMD_DO_NEXT:
                         RTS
 
 ; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_LOAD
+; DESCRIPTION: SERIAL LOADER COMMAND DISPATCH
+; USAGE: L S
+; ----------------------------------------------------------------------------
+CMD_DO_LOAD:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'S'
+                        BNE         ?CL_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CL_USAGE
+                        JMP         CMD_DO_LOAD_SREC
+?CL_USAGE:
+                        PRT_CSTRING MSG_L_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_LOAD_SREC
+; DESCRIPTION: RECEIVES MOTOROLA S-RECORDS OVER SERIAL UNTIL S7/S8/S9
+; NOTES:
+;   - S1/S2/S3 DATA RECORDS ARE WRITTEN TO MEMORY.
+;   - S0/S5/S6 ARE PARSED+CHECKED BUT DATA IS IGNORED.
+;   - S7/S8/S9 TERMINATES LOAD AFTER CHECKSUM VALIDATION.
+;   - ADDRESSES ABOVE $FFFF (S2/S3 WITH NONZERO UPPER BYTES) ARE REJECTED.
+; ----------------------------------------------------------------------------
+CMD_DO_LOAD_SREC:
+                        PRT_CSTRING MSG_LS_READY
+
+?LS_REC_LOOP:
+                        JSR         SREC_WAIT_START
+                        JSR         READ_BYTE
+                        JSR         UTIL_TO_UPPER
+                        CMP         #'0'
+                        BEQ         ?LS_T0
+                        CMP         #'1'
+                        BEQ         ?LS_T1
+                        CMP         #'2'
+                        BEQ         ?LS_T2
+                        CMP         #'3'
+                        BEQ         ?LS_T3
+                        CMP         #'5'
+                        BEQ         ?LS_T5
+                        CMP         #'6'
+                        BEQ         ?LS_T6
+                        CMP         #'7'
+                        BEQ         ?LS_T7
+                        CMP         #'8'
+                        BEQ         ?LS_T8
+                        CMP         #'9'
+                        BEQ         ?LS_T9
+                        CMP         #'X'
+                        BEQ         ?LS_USER_ABORT
+                        PRT_CSTRING MSG_LS_TYPE_ERR
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+?LS_USER_ABORT:
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+?LS_T0:
+                        LDA         #$02
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_SKIP
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T1:
+                        LDA         #$02
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_DATA
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T2:
+                        LDA         #$03
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_DATA
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T3:
+                        LDA         #$04
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_DATA
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T5:
+                        LDA         #$02
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_SKIP
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T6:
+                        LDA         #$03
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_SKIP
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T7:
+                        LDA         #$04
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_TERM
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T8:
+                        LDA         #$03
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_TERM
+                        STA         SREC_MODE
+                        BRA         ?LS_HAVE_TYPE
+?LS_T9:
+                        LDA         #$02
+                        STA         SREC_ADDR_LEN
+                        LDA         #SREC_MODE_TERM
+                        STA         SREC_MODE
+
+?LS_HAVE_TYPE:
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_COUNT_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_COUNT_OK:
+                        STA         SREC_COUNT
+                        STA         SREC_SUM
+
+        ; REMAIN = COUNT - ADDR_LEN ; (DATA + CHECKSUM)
+                        SEC
+                        SBC         SREC_ADDR_LEN
+                        BCS         ?LS_REMAIN_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_REMAIN_OK:
+                        STA         SREC_REMAIN
+                        BNE         ?LS_REMAIN_NONZERO
+                        JMP         ?LS_PARSE_ERR
+?LS_REMAIN_NONZERO:
+
+        ; PARSE ADDRESS FIELD.
+                        STZ         PTR_LEG
+                        STZ         PTR_TEMP
+                        STZ         PTR_TEMP+1
+                        LDA         SREC_ADDR_LEN
+                        CMP         #$02
+                        BEQ         ?LS_ADDR16
+                        CMP         #$03
+                        BEQ         ?LS_ADDR24
+
+        ; 32-BIT ADDRESS
+?LS_ADDR32:
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A32_B3_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A32_B3_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_LEG
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A32_B2_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A32_B2_OK:
+                        JSR         SREC_SUM_ADD_A
+                        ORA         PTR_LEG
+                        STA         PTR_LEG
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A32_B1_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A32_B1_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP+1
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A32_B0_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A32_B0_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP
+                        BRA         ?LS_ADDR_DONE
+
+?LS_ADDR24:
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A24_B2_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A24_B2_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_LEG
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A24_B1_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A24_B1_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP+1
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A24_B0_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A24_B0_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP
+                        BRA         ?LS_ADDR_DONE
+
+?LS_ADDR16:
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A16_B1_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A16_B1_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP+1
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_A16_B0_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_A16_B0_OK:
+                        JSR         SREC_SUM_ADD_A
+                        STA         PTR_TEMP
+
+?LS_ADDR_DONE:
+        ; S1/S2/S3 MUST FIT 16-BIT ADDR SPACE.
+                        LDA         SREC_MODE
+                        CMP         #SREC_MODE_DATA
+                        BNE         ?LS_AFTER_ADDR_CHECK
+                        LDA         PTR_LEG
+                        BEQ         ?LS_AFTER_ADDR_CHECK
+                        PRT_CSTRING MSG_LS_ADDR_ERR
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+?LS_AFTER_ADDR_CHECK:
+
+        ; TERMINATION RECORDS SHOULD HAVE NO DATA BYTES.
+                        LDA         SREC_MODE
+                        CMP         #SREC_MODE_TERM
+                        BNE         ?LS_DATA_LOOP
+                        LDA         SREC_REMAIN
+                        CMP         #$01
+                        BEQ         ?LS_READ_CKSUM
+                        JMP         ?LS_PARSE_ERR
+
+?LS_DATA_LOOP:
+                        LDA         SREC_REMAIN
+                        CMP         #$01
+                        BEQ         ?LS_READ_CKSUM
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_DATA_HEX_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_DATA_HEX_OK:
+                        JSR         SREC_SUM_ADD_A
+                        LDX         SREC_MODE
+                        CPX         #SREC_MODE_DATA
+                        BNE         ?LS_DATA_NEXT
+                        JSR         SREC_WRITE_BYTE
+                        BCC         ?LS_DATA_NEXT
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+?LS_DATA_NEXT:
+                        DEC         SREC_REMAIN
+                        BRA         ?LS_DATA_LOOP
+
+?LS_READ_CKSUM:
+                        JSR         SREC_READ_HEXBYTE
+                        BCC         ?LS_CKSUM_HEX_OK
+                        JMP         ?LS_PARSE_ERR
+?LS_CKSUM_HEX_OK:
+                        JSR         SREC_SUM_ADD_A
+                        LDA         SREC_SUM
+                        CMP         #$FF
+                        BEQ         ?LS_CKSUM_OK
+                        PRT_CSTRING MSG_LS_CHKSUM_ERR
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+?LS_CKSUM_OK:
+                        LDA         SREC_MODE
+                        CMP         #SREC_MODE_TERM
+                        BEQ         ?LS_DONE
+                        JMP         ?LS_REC_LOOP
+?LS_DONE:
+                        PRT_CSTRING MSG_LS_DONE
+                        RTS
+
+?LS_PARSE_ERR:
+                        PRT_CSTRING MSG_LS_PARSE_ERR
+                        PRT_CSTRING MSG_LS_ABORT
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SREC_WAIT_START
+; DESCRIPTION: BLOCKS UNTIL AN 'S' CHARACTER IS RECEIVED
+; ----------------------------------------------------------------------------
+SREC_WAIT_START:
+?SWS_LOOP:
+                        JSR         READ_BYTE
+                        JSR         UTIL_TO_UPPER
+                        CMP         #'S'
+                        BNE         ?SWS_LOOP
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SREC_READ_HEXBYTE
+; DESCRIPTION: READS TWO ASCII HEX CHARS FROM SERIAL AND RETURNS BYTE
+; OUTPUT: A=BYTE, C=0 OK / C=1 INVALID
+; ----------------------------------------------------------------------------
+SREC_READ_HEXBYTE:
+                        JSR         READ_BYTE
+                        JSR         UTIL_TO_UPPER
+                        JSR         HEX_TO_NIBBLE
+                        BCC         ?SRHB_BAD
+                        ASL         A
+                        ASL         A
+                        ASL         A
+                        ASL         A
+                        STA         MOD_BYTE
+                        JSR         READ_BYTE
+                        JSR         UTIL_TO_UPPER
+                        JSR         HEX_TO_NIBBLE
+                        BCC         ?SRHB_BAD
+                        CLC
+                        ADC         MOD_BYTE
+                        CLC
+                        RTS
+?SRHB_BAD:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SREC_SUM_ADD_A
+; DESCRIPTION: ADDS A BYTE INTO THE 8-BIT S-RECORD CHECKSUM SUM
+; INPUT: A=BYTE
+; OUTPUT: SREC_SUM UPDATED, A PRESERVED
+; ----------------------------------------------------------------------------
+SREC_SUM_ADD_A:
+                        PHA
+                        CLC
+                        ADC         SREC_SUM
+                        STA         SREC_SUM
+                        PLA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SREC_WRITE_BYTE
+; DESCRIPTION: WRITES A BYTE TO PTR_TEMP WITH PROTECT CHECK + VERIFY
+; INPUT: A=DATA BYTE, PTR_TEMP=DESTINATION
+; OUTPUT: C=0 OK / C=1 FAIL
+; ----------------------------------------------------------------------------
+SREC_WRITE_BYTE:
+                        STA         MOD_BYTE
+                        LDA         PTR_TEMP+1
+                        JSR         CHECK_ADDR_ALLOWED_HI
+                        BCC         ?SWB_ALLOWED
+                        SEC
+                        RTS
+?SWB_ALLOWED:
+                        LDY         #$00
+                        LDA         MOD_BYTE
+                        STA         (PTR_TEMP),Y
+                        LDA         (PTR_TEMP),Y
+                        CMP         MOD_BYTE
+                        BEQ         ?SWB_OK
+                        LDA         PTR_TEMP
+                        STA         PTR_LEG
+                        LDA         PTR_TEMP+1
+                        STA         PTR_LEG+1
+                        LDA         #'L'
+                        JSR         PRT_VERIFY_ERR
+                        SEC
+                        RTS
+?SWB_OK:
+                        INC         PTR_TEMP
+                        BNE         ?SWB_DONE
+                        INC         PTR_TEMP+1
+?SWB_DONE:
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: R_PARSE_ASSIGN_BYTE
 ; DESCRIPTION: PARSES "=HH" (HEX BYTE) FOR R REGISTER OVERRIDES
 ; INPUT: X = FIRST CHAR AFTER REGISTER LETTER
@@ -1177,6 +1550,8 @@ CMD_TABLE:
                         DW          CMD_DO_NEXT
                         DB          'F'
                         DW          CMD_DO_FILL
+                        DB          'L'
+                        DW          CMD_DO_LOAD
                         DB          'Q'
                         DW          CMD_DO_QUIT_MONITOR
                         DB          'V'
@@ -1252,6 +1627,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_18
                         PRT_CSTRING MSG_HELP_FULL_19
                         PRT_CSTRING MSG_HELP_FULL_20
+                        PRT_CSTRING MSG_HELP_FULL_26
                         PRT_CSTRING MSG_HELP_FULL_21
                         PRT_CSTRING MSG_HELP_FULL_22
                         PRT_CSTRING MSG_HELP_FULL_23
@@ -4833,9 +5209,9 @@ MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:N R X  MEM:A C "
-                        DB          "D F M U V", 0
+                        DB          "D F L M U V", 0
                         DB          $0D, $0A
-                        DB          "PROT: ! FOR F/M/C/A/N", 0
+                        DB          "PROT: ! FOR F/M/C/A/N/L", 0
 MSG_HELP_FULL_0:        DB          $0D, $0A, "MONITOR HELP", 0
 MSG_HELP_FULL_1:        DB          $0D, $0A, "  [HELP]"
                         DB          0
@@ -4893,6 +5269,9 @@ MSG_HELP_FULL_19:       DB          $0D, $0A
 MSG_HELP_FULL_20:       DB          $0D, $0A
                         DB          "    NOTE: CRLF PAIR COUNTS AS ONE NEXT"
                         DB          0
+MSG_HELP_FULL_26:       DB          $0D, $0A
+                        DB          "  L S              LOAD MOTOROLA S-RECORD"
+                        DB          "S", 0
 MSG_HELP_FULL_21:       DB          $0D, $0A
                         DB          "  U S E            DISASSEMBLE 65C02 RANGE"
                         DB          0
@@ -4902,7 +5281,7 @@ MSG_HELP_FULL_23:       DB          $0D, $0A
                         DB          "  [PROTECTION]"
                         DB          0
 MSG_HELP_FULL_24:       DB          $0D, $0A
-                        DB          "  F/M/C/A/N        PROTECT $0000-$03FF BY"
+                        DB          "  F/M/C/A/N/L      PROTECT $0000-$03FF BY"
                         DB          " DEFAULT", 0
 MSG_HELP_FULL_25:       DB          $0D, $0A
                         DB          "  !<CMD> ...       FORCE-ENABLE LOW-RAM A"
@@ -4921,10 +5300,20 @@ MSG_R_USAGE:            DB          $0D, $0A
                         DB          "USAGE: R [A=HH] [X=HH] [Y=HH]", 0
 MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
 MSG_N_USAGE:            DB          $0D, $0A, "USAGE: N", 0
+MSG_L_USAGE:            DB          $0D, $0A, "USAGE: L S", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
 MSG_F_USAGE:            DB          $0D, $0A, "USAGE: F START END B0..B15", 0
 MSG_C_USAGE:            DB          $0D, $0A
                         DB          "USAGE: C SRC_START SRC_END DST_START", 0
+MSG_LS_READY:           DB          $0D, $0A
+                        DB          "L S READY - SEND S-RECORDS (ABORT WITH SX)"
+                        DB          0
+MSG_LS_DONE:            DB          $0D, $0A, "L S LOAD COMPLETE", 0
+MSG_LS_ABORT:           DB          $0D, $0A, "L S ABORTED", 0
+MSG_LS_PARSE_ERR:       DB          $0D, $0A, "L S RECORD FORMAT ERROR", 0
+MSG_LS_CHKSUM_ERR:      DB          $0D, $0A, "L S CHECKSUM ERROR", 0
+MSG_LS_TYPE_ERR:        DB          $0D, $0A, "L S UNSUPPORTED RECORD TYPE", 0
+MSG_LS_ADDR_ERR:        DB          $0D, $0A, "L S ADDRESS OUT OF 16-BIT RANGE", 0
 MSG_VERIFY_ERR_SUFFIX:  DB          " VERIFY FAILED AT ADDR ", 0
 MSG_Q_WAIT:             DB          $0D, $0A, "Q HALT - RESET/NMI TO RESUME"
                         DB          0

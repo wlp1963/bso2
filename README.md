@@ -16,9 +16,14 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher
 - Ring-buffer command parser
-- Commands: `Z C W M D U A X R N F Q V H ?`
+- Commands: `Z C W M D U A X R N F L Q V H ?`
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with previous and next instruction lines
+
+## Project Notes
+
+- Code size is not a current optimization target. This project currently assumes `32K RAM` and `32K ROM`.
+- Some code in this repository was generated with AI assistance. The `SXB/EDU` board is being used as a blank canvas, and AI assistance was used to accelerate delivery of the primary project goals.
 
 ## Repository Layout
 
@@ -70,10 +75,11 @@ make -C SRC clean
 - `N` run to next sequential instruction using a temporary RAM breakpoint (`ROM/I/O` targets are rejected)
 - `M [START [B0..B15]]` modify/deposit memory
 - `F START END B0..B15` fill memory with repeating pattern
+- `L S` load Motorola S-records from serial (stops at `S7/S8/S9`, abort with `SX`)
 - `C SRC_START SRC_END DST_START` copy memory (overlap-safe)
 - `Q` halt with `WAI` (resume via NMI/Reset)
 - `V` print vector chain information
-- `!<CMD> ...` force-enable protected low-RAM access for `F/M/C/A/N`
+- `!<CMD> ...` force-enable protected low-RAM access for `F/M/C/A/N/L`
 
 Notes:
 - In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
