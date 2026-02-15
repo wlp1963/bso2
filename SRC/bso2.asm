@@ -1,12 +1,18 @@
+; Provenance and licensing:
+; This file includes material derived/adapted from WDC EDU sample sources:
+;   - 02EDU_GettingStarted.zip/EDU_GettingStarted/ASM/EDUGS_FLASH.asm
+;   - 02EDU_GettingStarted.zip/EDU_GettingStarted/ASM/02EDU.inc
+; Upstream-derived portions remain subject to the original WDC notices/terms.
+; Project-original additions/modifications in this file are
+; Copyright (c) 2026 95west.us and licensed under MIT.
+; See LICENSE and THIRD_PARTY_NOTICES.md for details.
+
 ; ****************************************************************************
 ; * *
 ; * BSO2 MONITOR FOR W65C02EDU                                               *
 ; * REV: 2.0 (VECTOR INIT ON RESET)                                          *
 ; * *
 ; ****************************************************************************
-; SPDX-License-Identifier: MIT
-; Copyright (c) 2026 95west.us
-; See LICENSE for full license text.
 
                         MACLIST     OFF
                         CHIP        65C02
