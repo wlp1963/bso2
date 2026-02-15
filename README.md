@@ -16,7 +16,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher
 - Ring-buffer command parser
-- Commands: `Z C W M D U A X R N F L Q V H ?`
+- Commands: `Z C W M D U A X G R N F L Q V H ?`
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with previous and next instruction lines
 
@@ -84,6 +84,7 @@ Requirements:
 - `U START END` disassemble a 65C02 range (`END` inclusive)
 - `A START [MNEMONIC OPERANDS]` tiny interactive 65C02 assembler (`.` exits)
 - `X START` execute at address
+- `G` play a simple 3-try number guess game (`1..10`)
 - `R [A=HH] [X=HH] [Y=HH]` resume last debug context (optional `A/X/Y` overrides)
 - `N` run to next sequential instruction using a temporary RAM breakpoint (`ROM/I/O` targets are rejected)
 - `M [START [B0..B15]]` modify/deposit memory
@@ -112,6 +113,8 @@ Notes:
 
 - Add `S` search command family.
 - Parser shape (planned): `S C START END <text>` and `S B START END <pattern...>`.
+- Mainline parser strategy (planned): keep current single-letter command dispatch and add a shared tokenizer for subcommands/quoted arguments.
+- Possible fork path (future): full string-driven command parser that replaces single-letter dispatch with multi-character command verbs/grammar.
 - `S C` (C-string text mode):
   - Unquoted text stops at first whitespace.
   - Quoted text supports delimiters like `"`, `'`, and `` ` ``.
@@ -122,6 +125,7 @@ Notes:
   - `HL` nibble wildcard token where each nibble is hex or `?` (`?A`, `A?`, `??`).
   - `*` single-byte wildcard (`*` and `??` are equivalent wildcard bytes).
 - Future (not yet implemented): `S P` (Pascal length-prefixed strings), `S H` (high-bit-set ASCII strings).
+- Games backlog / future ideas: `Mastermind`, `Conway's Life`, `Tic-Tac-Toe`.
 
 ## Legal
 

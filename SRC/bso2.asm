@@ -130,6 +130,9 @@ DBG_CONTINUE:           DS          1   ; NMI DEBUG LOOP EXIT FLAG
 STEP_ADDR:              DS          2   ; TEMP BRK ADDRESS FOR N COMMAND
 STEP_ORIG:              DS          1   ; ORIGINAL BYTE REPLACED BY TEMP BRK
 STEP_ACTIVE:            DS          1   ; 1 IF TEMP BRK IS CURRENTLY ARMED
+GAME_TARGET:            DS          1   ; TARGET VALUE FOR G NUMBER GAME (1..10)
+GAME_TRIES:             DS          1   ; REMAINING TRIES FOR G NUMBER GAME
+GAME_GUESS:             DS          1   ; LAST PARSED GUESS FOR G NUMBER GAME
 
 RST_HOOK:               DS          3   ; RST VECTOR JUMP
 NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
@@ -766,17 +769,22 @@ CMD_SAVE_LAST:
 ; SUBROUTINE: CMD_PROCESS_IF_READY
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
-; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), R (RESUME), N (NEXT), F (FILL),
-; L S / L B (SERIAL LOAD), Q (WAIT), V
+; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
+; N (NEXT), F (FILL), L S / L B (SERIAL LOAD), Q (WAIT), V
 ; (VECTORS), H/? (HELP)
 ; TODO (PLANNED SEARCH COMMAND FAMILY):
 ;   - S C START END <TEXT>  ; C-STRING STYLE TEXT SEARCH MODE
 ;   - S B START END <PAT...>; BINARY SEARCH MODE (BYTES/WORDS/WILDCARDS)
+;   - MAINLINE PARSER PLAN: KEEP SINGLE-LETTER CMD_TABLE DISPATCH; ADD SHARED
+;     TOKENIZER/QUOTED-ARG PARSING FOR SUBCOMMANDS (L S/L B/S C/S B STYLE).
+;   - POSSIBLE FORK (FUTURE): FULL STRING-DRIVEN COMMAND PARSER WITH
+;     MULTI-CHAR COMMAND VERBS/GRAMMAR IN PLACE OF SINGLE-LETTER DISPATCH.
 ;   - FUTURE ONLY: S P (PASCAL LENGTH-PREFIXED STRINGS), S H (HIGH-BIT ASCII)
 ;   - S C PARSE RULES: UNQUOTED STOPS AT SPACE; QUOTES CAN BE " ' ` ; ESCAPE
 ;     EMBEDDED DELIMITER BY DOUBLING IT.
 ;   - S B PARSE RULES: BYTE HH, WORD HHHH (LITTLE-ENDIAN MATCH), NIBBLE TOKEN
 ;     HL WITH ? WILDCARD NIBBLE, AND * AS SINGLE-BYTE WILDCARD.
+;   - GAME IDEAS (FUTURE): MASTERMIND, CONWAY'S LIFE, TIC-TAC-TOE.
 ; PREFIX: ! FORCES LOW-RAM ACCESS FOR PROTECTED COMMANDS (F/M/C/A/N/L)
 ; ----------------------------------------------------------------------------
 CMD_PROCESS_IF_READY:
@@ -1106,6 +1114,150 @@ CMD_DO_NEXT:
 ?CN_ROM:
                         PRT_CSTRING MSG_N_ROM
 ?CN_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_GAME
+; DESCRIPTION: SIMPLE NUMBER GUESS GAME
+; USAGE: G
+; RULES:
+;   - TARGET IS 1..10 (DERIVED FROM 1-BYTE ZP ADD + SCALE).
+;   - PLAYER HAS 3 CHANCES.
+; ----------------------------------------------------------------------------
+CMD_DO_GAME:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?GD_START
+                        PRT_CSTRING MSG_GAME_USAGE
+                        RTS
+?GD_START:
+                        JSR         GAME_PICK_TARGET
+                        LDA         #$03
+                        STA         GAME_TRIES
+                        PRT_CSTRING MSG_GAME_INTRO
+?GD_ROUND:
+                        PRT_CSTRING MSG_GAME_PROMPT
+                        JSR         ASM_READ_LINE
+                        LDX         #$00
+                        JSR         GAME_PARSE_GUESS
+                        BCS         ?GD_BAD_INPUT
+                        STA         GAME_GUESS
+                        CMP         GAME_TARGET
+                        BEQ         ?GD_WIN
+                        BCC         ?GD_LOW
+                        PRT_CSTRING MSG_GAME_HIGH
+                        BRA         ?GD_MISS
+?GD_LOW:
+                        PRT_CSTRING MSG_GAME_LOW
+?GD_MISS:
+                        DEC         GAME_TRIES
+                        BNE         ?GD_ROUND
+                        PRT_CSTRING MSG_GAME_LOSE
+                        LDA         GAME_TARGET
+                        JSR         GAME_PRINT_1_10
+                        RTS
+?GD_BAD_INPUT:
+                        PRT_CSTRING MSG_GAME_BAD_INPUT
+                        BRA         ?GD_ROUND
+?GD_WIN:
+                        PRT_CSTRING MSG_GAME_WIN
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: GAME_PICK_TARGET
+; DESCRIPTION: GENERATES TARGET IN RANGE 1..10 USING 1-BYTE ZP ADD
+; OUTPUT: GAME_TARGET = 1..10
+; ----------------------------------------------------------------------------
+GAME_PICK_TARGET:
+                        LDA         RBUF_HEAD
+                        CLC
+                        ADC         CMD_LAST_LEN
+?GPT_MOD10:
+                        CMP         #$0A
+                        BCC         ?GPT_DONE
+                        SEC
+                        SBC         #$0A
+                        BRA         ?GPT_MOD10
+?GPT_DONE:
+                        CLC
+                        ADC         #$01
+                        STA         GAME_TARGET
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: GAME_PARSE_GUESS
+; DESCRIPTION: PARSES CMD_LINE AS DECIMAL 1..10 (OPTIONAL LEADING/TRAILING SPACES)
+; INPUT:  X = START INDEX
+; OUTPUT: A = GUESS (1..10), C=0 OK / C=1 ERROR
+; ----------------------------------------------------------------------------
+GAME_PARSE_GUESS:
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'1'
+                        BEQ         ?GPG_ONE_OR_TEN
+                        CMP         #'2'
+                        BCC         ?GPG_ERR
+                        CMP         #'9'+1
+                        BCS         ?GPG_ERR
+                        SEC
+                        SBC         #'0'
+                        PHA
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?GPG_POP_ERR
+                        PLA
+                        CLC
+                        RTS
+?GPG_ONE_OR_TEN:
+                        INX
+                        LDA         CMD_LINE,X
+                        BEQ         ?GPG_ONE_OK
+                        CMP         #' '
+                        BEQ         ?GPG_ONE_TAIL
+                        CMP         #'0'
+                        BNE         ?GPG_ERR
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?GPG_ERR
+                        LDA         #$0A
+                        CLC
+                        RTS
+?GPG_ONE_OK:
+                        LDA         #$01
+                        CLC
+                        RTS
+?GPG_ONE_TAIL:
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?GPG_ERR
+                        LDA         #$01
+                        CLC
+                        RTS
+?GPG_POP_ERR:
+                        PLA
+?GPG_ERR:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: GAME_PRINT_1_10
+; DESCRIPTION: PRINTS DECIMAL VALUE IN A (EXPECTED 1..10)
+; ----------------------------------------------------------------------------
+GAME_PRINT_1_10:
+                        CMP         #$0A
+                        BNE         ?GP10_ONE
+                        LDA         #'1'
+                        JSR         WRITE_BYTE
+                        LDA         #'0'
+                        JSR         WRITE_BYTE
+                        RTS
+?GP10_ONE:
+                        CLC
+                        ADC         #'0'
+                        JSR         WRITE_BYTE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -1655,6 +1807,8 @@ CMD_TABLE:
                         DW          CMD_DO_ASM
                         DB          'X'
                         DW          CMD_DO_GO
+                        DB          'G'
+                        DW          CMD_DO_GAME
                         DB          'R'
                         DW          CMD_DO_RESUME
                         DB          'N'
@@ -1729,6 +1883,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_9
                         PRT_CSTRING MSG_HELP_FULL_10
                         PRT_CSTRING MSG_HELP_FULL_11
+                        PRT_CSTRING MSG_HELP_FULL_28
                         PRT_CSTRING MSG_HELP_FULL_12
                         PRT_CSTRING MSG_HELP_FULL_13
                         PRT_CSTRING MSG_HELP_FULL_14
@@ -5320,7 +5475,7 @@ MSG_POWER_ON:           DB          $0D, $0A, "POWER ON", 0
 MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q W Z  EXEC:N R X  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
                         DB          "D F L M U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L", 0
@@ -5355,6 +5510,9 @@ MSG_HELP_FULL_10:       DB          $0D, $0A
 MSG_HELP_FULL_11:       DB          $0D, $0A
                         DB          "  X S              EXECUTE; NMI BREAKS TO"
                         DB          " MONITOR", 0
+MSG_HELP_FULL_28:       DB          $0D, $0A
+                        DB          "  G                GUESS NUMBER (1-10, 3 "
+                        DB          "TRIES)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A
                         DB          "  [MEMORY]"
                         DB          0
@@ -5415,6 +5573,7 @@ MSG_R_USAGE:            DB          $0D, $0A
                         DB          "USAGE: R [A=HH] [X=HH] [Y=HH]", 0
 MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
 MSG_N_USAGE:            DB          $0D, $0A, "USAGE: N", 0
+MSG_GAME_USAGE:         DB          $0D, $0A, "USAGE: G", 0
 MSG_L_USAGE:            DB          $0D, $0A
                         DB          "USAGE: L S | L B ADDR LEN", 0
 MSG_LB_USAGE:           DB          $0D, $0A, "USAGE: L B ADDR LEN", 0
@@ -5424,6 +5583,14 @@ MSG_LB_READY:           DB          $0D, $0A, "L B READY - SEND RAW BYTES", 0
 MSG_LB_DONE:            DB          $0D, $0A, "L B LOAD COMPLETE", 0
 MSG_LB_ABORT:           DB          $0D, $0A, "L B ABORTED", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
+MSG_GAME_INTRO:         DB          $0D, $0A
+                        DB          "I AM THINKING OF A NUMBER (1-10)", 0
+MSG_GAME_PROMPT:        DB          $0D, $0A, "? ", 0
+MSG_GAME_BAD_INPUT:     DB          $0D, $0A, "ENTER 1..10", 0
+MSG_GAME_LOW:           DB          $0D, $0A, "TOO LOW", 0
+MSG_GAME_HIGH:          DB          $0D, $0A, "TOO HIGH", 0
+MSG_GAME_WIN:           DB          $0D, $0A, "CORRECT", 0
+MSG_GAME_LOSE:          DB          $0D, $0A, "OUT OF CHANCES. NUMBER WAS ", 0
 MSG_F_USAGE:            DB          $0D, $0A, "USAGE: F START END B0..B15", 0
 MSG_C_USAGE:            DB          $0D, $0A
                         DB          "USAGE: C SRC_START SRC_END DST_START", 0
