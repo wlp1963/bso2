@@ -770,7 +770,7 @@ CMD_SAVE_LAST:
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
-; N (NEXT), F (FILL), L S / L B (SERIAL LOAD), Q (WAIT), V
+; N (NEXT), F (FILL), L S / L B (SERIAL LOAD), P (RESERVED: PUT), Q (WAIT), V
 ; (VECTORS), H/? (HELP)
 ; TODO (PLANNED SEARCH COMMAND FAMILY):
 ;   - S C START END <TEXT>  ; C-STRING STYLE TEXT SEARCH MODE
@@ -1895,6 +1895,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_20
                         PRT_CSTRING MSG_HELP_FULL_26
                         PRT_CSTRING MSG_HELP_FULL_27
+                        PRT_CSTRING MSG_HELP_FULL_29
                         PRT_CSTRING MSG_HELP_FULL_21
                         PRT_CSTRING MSG_HELP_FULL_22
                         PRT_CSTRING MSG_HELP_FULL_23
@@ -5476,7 +5477,7 @@ MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
-                        DB          "D F L M U V", 0
+                        DB          "D F L M P U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L", 0
 MSG_HELP_FULL_0:        DB          $0D, $0A, "MONITOR HELP", 0
@@ -5545,6 +5546,9 @@ MSG_HELP_FULL_26:       DB          $0D, $0A
 MSG_HELP_FULL_27:       DB          $0D, $0A
                         DB          "  L B A L          LOAD RAW BYTES TO ADDR/"
                         DB          "LEN (NO CRC)", 0
+MSG_HELP_FULL_29:       DB          $0D, $0A
+                        DB          "  P                RESERVED FOR PUT (TBD)"
+                        DB          0
 MSG_HELP_FULL_21:       DB          $0D, $0A
                         DB          "  U S E            DISASSEMBLE 65C02 RANGE"
                         DB          0
