@@ -61,6 +61,19 @@ Clean:
 make -C SRC clean
 ```
 
+## Host Helper (L B)
+
+Use the included sender to stream a binary file for `L B ADDR LEN`:
+
+```powershell
+python tools/send_lb.py payload.bin --port COM3 --addr 1000
+```
+
+Requirements:
+
+- Python
+- `pyserial` (`pip install pyserial`)
+
 ## Monitor Commands
 
 - `?` short help
@@ -76,6 +89,7 @@ make -C SRC clean
 - `M [START [B0..B15]]` modify/deposit memory
 - `F START END B0..B15` fill memory with repeating pattern
 - `L S` load Motorola S-records from serial (stops at `S7/S8/S9`, abort with `SX`)
+- `L B ADDR LEN` load raw serial bytes to memory at `ADDR` for `LEN` bytes (no CRC)
 - `C SRC_START SRC_END DST_START` copy memory (overlap-safe)
 - `Q` halt with `WAI` (resume via NMI/Reset)
 - `V` print vector chain information

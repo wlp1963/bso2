@@ -761,7 +761,7 @@ CMD_SAVE_LAST:
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), R (RESUME), N (NEXT), F (FILL),
-; L S (S-RECORD LOAD), Q (WAIT), V
+; L S / L B (SERIAL LOAD), Q (WAIT), V
 ; (VECTORS), H/? (HELP)
 ; PREFIX: ! FORCES LOW-RAM ACCESS FOR PROTECTED COMMANDS (F/M/C/A/N/L)
 ; ----------------------------------------------------------------------------
@@ -1097,21 +1097,118 @@ CMD_DO_NEXT:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_LOAD
 ; DESCRIPTION: SERIAL LOADER COMMAND DISPATCH
-; USAGE: L S
+; USAGE: L S | L B <ADDR> <LEN>
 ; ----------------------------------------------------------------------------
 CMD_DO_LOAD:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
                         CMP         #'S'
-                        BNE         ?CL_USAGE
+                        BEQ         ?CL_PARSE_S
+                        CMP         #'B'
+                        BEQ         ?CL_PARSE_B
+                        BRA         ?CL_USAGE
+?CL_PARSE_S:
                         INX
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
                         BNE         ?CL_USAGE
                         JMP         CMD_DO_LOAD_SREC
+?CL_PARSE_B:
+                        INX
+                        JMP         CMD_DO_LOAD_BIN
 ?CL_USAGE:
                         PRT_CSTRING MSG_L_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_LOAD_BIN
+; DESCRIPTION: RECEIVES RAW BINARY BYTES OVER SERIAL INTO MEMORY
+; USAGE: L B <ADDR> <LEN>
+; NOTES:
+;   - ADDR/LEN ARE 1..4 HEX DIGITS (OPTIONAL '$' PREFIX).
+;   - LEN MUST BE 1..$FFFF.
+;   - ADDR+LEN MAY END AT EXACTLY $10000, BUT MUST NOT EXCEED IT.
+;   - NO CHECKSUM/CRC IS USED.
+; ----------------------------------------------------------------------------
+CMD_DO_LOAD_BIN:
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BEQ         ?LB_ADDR_OK
+                        JMP         ?LB_USAGE
+?LB_ADDR_OK:
+                        LDA         CMD_PARSE_VAL
+                        STA         PTR_TEMP ; DEST ADDR
+                        LDA         CMD_PARSE_VAL+1
+                        STA         PTR_TEMP+1
+
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BEQ         ?LB_LEN_PARSE_OK
+                        JMP         ?LB_USAGE
+?LB_LEN_PARSE_OK:
+                        LDA         CMD_PARSE_VAL
+                        STA         SREC_COUNT ; BYTES LEFT LO
+                        LDA         CMD_PARSE_VAL+1
+                        STA         SREC_COUNT+1 ; BYTES LEFT HI
+
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?LB_ARGS_DONE
+                        JMP         ?LB_USAGE
+?LB_ARGS_DONE:
+
+                        LDA         SREC_COUNT
+                        ORA         SREC_COUNT+1
+                        BNE         ?LB_LEN_OK
+                        PRT_CSTRING MSG_LB_LEN_ERR
+                        RTS
+?LB_LEN_OK:
+        ; EARLY PROTECT CHECK SO WE FAIL BEFORE CONSUMING BINARY STREAM BYTES.
+                        LDA         PTR_TEMP+1
+                        JSR         CHECK_ADDR_ALLOWED_HI
+                        BCC         ?LB_PROTECT_OK
+                        RTS
+?LB_PROTECT_OK:
+        ; RANGE CHECK: ADDR+LEN MAY BE <= $10000 ONLY.
+                        CLC
+                        LDA         PTR_TEMP
+                        ADC         SREC_COUNT
+                        STA         PTR_LEG
+                        LDA         PTR_TEMP+1
+                        ADC         SREC_COUNT+1
+                        STA         PTR_LEG+1
+                        BCC         ?LB_RANGE_OK
+                        LDA         PTR_LEG
+                        ORA         PTR_LEG+1
+                        BEQ         ?LB_RANGE_OK ; EXACTLY $10000
+                        PRT_CSTRING MSG_LB_RANGE_ERR
+                        RTS
+
+?LB_RANGE_OK:
+                        PRT_CSTRING MSG_LB_READY
+?LB_RECV_LOOP:
+                        LDA         SREC_COUNT
+                        ORA         SREC_COUNT+1
+                        BEQ         ?LB_DONE
+                        JSR         READ_BYTE
+                        JSR         SREC_WRITE_BYTE
+                        BCC         ?LB_DEC
+                        PRT_CSTRING MSG_LB_ABORT
+                        RTS
+?LB_DEC:
+                        LDA         SREC_COUNT
+                        BNE         ?LB_DEC_LO
+                        DEC         SREC_COUNT+1
+?LB_DEC_LO:
+                        DEC         SREC_COUNT
+                        BRA         ?LB_RECV_LOOP
+?LB_DONE:
+                        PRT_CSTRING MSG_LB_DONE
+                        RTS
+
+?LB_USAGE:
+                        PRT_CSTRING MSG_LB_USAGE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -1628,6 +1725,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_19
                         PRT_CSTRING MSG_HELP_FULL_20
                         PRT_CSTRING MSG_HELP_FULL_26
+                        PRT_CSTRING MSG_HELP_FULL_27
                         PRT_CSTRING MSG_HELP_FULL_21
                         PRT_CSTRING MSG_HELP_FULL_22
                         PRT_CSTRING MSG_HELP_FULL_23
@@ -5272,6 +5370,9 @@ MSG_HELP_FULL_20:       DB          $0D, $0A
 MSG_HELP_FULL_26:       DB          $0D, $0A
                         DB          "  L S              LOAD MOTOROLA S-RECORD"
                         DB          "S", 0
+MSG_HELP_FULL_27:       DB          $0D, $0A
+                        DB          "  L B A L          LOAD RAW BYTES TO ADDR/"
+                        DB          "LEN (NO CRC)", 0
 MSG_HELP_FULL_21:       DB          $0D, $0A
                         DB          "  U S E            DISASSEMBLE 65C02 RANGE"
                         DB          0
@@ -5300,7 +5401,14 @@ MSG_R_USAGE:            DB          $0D, $0A
                         DB          "USAGE: R [A=HH] [X=HH] [Y=HH]", 0
 MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
 MSG_N_USAGE:            DB          $0D, $0A, "USAGE: N", 0
-MSG_L_USAGE:            DB          $0D, $0A, "USAGE: L S", 0
+MSG_L_USAGE:            DB          $0D, $0A
+                        DB          "USAGE: L S | L B ADDR LEN", 0
+MSG_LB_USAGE:           DB          $0D, $0A, "USAGE: L B ADDR LEN", 0
+MSG_LB_LEN_ERR:         DB          $0D, $0A, "L B LEN MUST BE 1..FFFF", 0
+MSG_LB_RANGE_ERR:       DB          $0D, $0A, "L B RANGE ERROR", 0
+MSG_LB_READY:           DB          $0D, $0A, "L B READY - SEND RAW BYTES", 0
+MSG_LB_DONE:            DB          $0D, $0A, "L B LOAD COMPLETE", 0
+MSG_LB_ABORT:           DB          $0D, $0A, "L B ABORTED", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
 MSG_F_USAGE:            DB          $0D, $0A, "USAGE: F START END B0..B15", 0
 MSG_C_USAGE:            DB          $0D, $0A
