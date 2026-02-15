@@ -108,6 +108,21 @@ Notes:
 - Community conduct: `CODE_OF_CONDUCT.md`
 - Release checklist: `RELEASING.md`
 
+## Future / TODO
+
+- Add `S` search command family.
+- Parser shape (planned): `S C START END <text>` and `S B START END <pattern...>`.
+- `S C` (C-string text mode):
+  - Unquoted text stops at first whitespace.
+  - Quoted text supports delimiters like `"`, `'`, and `` ` ``.
+  - Delimiter escaping is by doubling the delimiter character.
+- `S B` (binary mode):
+  - `HH` byte token (`00..FF`).
+  - `HHHH` word/address token, searched little-endian (example: `8000` => `00 80`).
+  - `HL` nibble wildcard token where each nibble is hex or `?` (`?A`, `A?`, `??`).
+  - `*` single-byte wildcard (`*` and `??` are equivalent wildcard bytes).
+- Future (not yet implemented): `S P` (Pascal length-prefixed strings), `S H` (high-bit-set ASCII strings).
+
 ## Legal
 
 - `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
