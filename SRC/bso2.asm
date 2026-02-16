@@ -1901,6 +1901,11 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_23
                         PRT_CSTRING MSG_HELP_FULL_24
                         PRT_CSTRING MSG_HELP_FULL_25
+                        PRT_CSTRING MSG_HELP_FULL_30
+                        PRT_CSTRING MSG_HELP_FULL_31
+                        PRT_CSTRING MSG_HELP_FULL_32
+                        PRT_CSTRING MSG_HELP_FULL_33
+                        PRT_CSTRING MSG_HELP_FULL_34
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -5547,13 +5552,14 @@ MSG_HELP_FULL_27:       DB          $0D, $0A
                         DB          "  L B A L          LOAD RAW BYTES TO ADDR/"
                         DB          "LEN (NO CRC)", 0
 MSG_HELP_FULL_29:       DB          $0D, $0A
-                        DB          "  P                RESERVED FOR PUT (TBD)"
-                        DB          0
+                        DB          "  P                RESERVED / DEPRECATED ("
+                        DB          "USE I O P)", 0
 MSG_HELP_FULL_21:       DB          $0D, $0A
                         DB          "  U S E            DISASSEMBLE 65C02 RANGE"
                         DB          0
 MSG_HELP_FULL_22:       DB          $0D, $0A
-                        DB          "  V                SHOW VECTOR CHAINS", 0
+                        DB          "  V                SHOW VECTOR CHAINS (DEP"
+                        DB          "RECATING)", 0
 MSG_HELP_FULL_23:       DB          $0D, $0A
                         DB          "  [PROTECTION]"
                         DB          0
@@ -5563,6 +5569,20 @@ MSG_HELP_FULL_24:       DB          $0D, $0A
 MSG_HELP_FULL_25:       DB          $0D, $0A
                         DB          "  !<CMD> ...       FORCE-ENABLE LOW-RAM A"
                         DB          "CCESS", 0
+MSG_HELP_FULL_30:       DB          $0D, $0A
+                        DB          "  [STEERING] (PLANNED/PROVISIONAL)"
+                        DB          0
+MSG_HELP_FULL_31:       DB          $0D, $0A
+                        DB          "  STYLE            NOUN VERB (M D, X S, I"
+                        DB          " O V)", 0
+MSG_HELP_FULL_32:       DB          $0D, $0A
+                        DB          "  WILL CHANGE      X->J EXEC, TIME->I T, T"
+                        DB          "->TERMINAL", 0
+MSG_HELP_FULL_33:       DB          $0D, $0A
+                        DB          "  DEPRECATED       TOP-LEVEL P/V; USE I O "
+                        DB          "P / I O V", 0
+MSG_HELP_FULL_34:       DB          $0D, $0A
+                        DB          "  PROVISO          CHANGE IS CONSTANT", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0

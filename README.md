@@ -111,6 +111,7 @@ Notes:
 - Security policy: `SECURITY.md`
 - Community conduct: `CODE_OF_CONDUCT.md`
 - Release checklist: `RELEASING.md`
+- Author stories/history: `STORIES.md`
 
 ## Future / TODO
 
