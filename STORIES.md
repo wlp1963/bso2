@@ -21,6 +21,6 @@ I wrote Turbo Pascal programs to interface with the 8514/A and its large monitor
 
 Institutions using our service paid extra for that capability because it replaced storage rooms full of binders and green bar with indexed retrieval.
 
-I wrote the indexing program and an RLE compression routine. The first implementation in RPG did not finish overnight for even small-bank output windows, so I learned 5727-AS1 (System/36 assembler) and rewrote the full path. It was dramatically faster and drove a fully configured 5360 (max memory and four 10 SR disk drives) very hard.
+I wrote the indexing program and an RLE compression routine. RLE was a practical production tool in my ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio. The first implementation in RPG did not finish overnight for even small-bank output windows, so I learned 5727-AS1 (System/36 assembler) and rewrote the full path. It was dramatically faster and drove a fully configured 5360 (max memory and four 10 SR disk drives) very hard.
 
 There are more stories around the PC-side loan upload tooling and related integration work; those can be added in later revisions.

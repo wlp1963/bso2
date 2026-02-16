@@ -148,6 +148,7 @@ Notes:
 - Preferred first implementation is tokenized text with RLE support.
 - RLE rule: encode runs of `3+` consecutive bytes.
 - Special run tokens are planned for frequent bytes: `space`, `-`, `0`, `1`, and `*`.
+- Historical design note: RLE was a practical production tool in ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio.
 - Decompression direction is from ROM-compressed data to a sink (`UART` stream or RAM/TX buffer).
 - A dedicated `TX` ring buffer is planned for nonblocking output.
 - Decoder should be resumable when TX is full (pause/resume state machine).

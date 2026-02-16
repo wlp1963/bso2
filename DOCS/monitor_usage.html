@@ -250,6 +250,7 @@ DBG_TAG_BUF   6 bytes</p>
     <li>Planned model: tokenized text plus RLE.</li>
     <li>RLE threshold: encode runs of 3 or more consecutive bytes.</li>
     <li>Frequent-byte run tokens are planned for <code>space</code>, <code>-</code>, <code>0</code>, <code>1</code>, and <code>*</code>.</li>
+    <li>Historical design note: RLE was a practical production tool in ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio.</li>
     <li>Decompression direction is ROM compressed stream to output sink (UART stream directly or TX/RAM staging).</li>
     <li>A dedicated TX ring buffer is planned for nonblocking output.</li>
     <li>Decoder should be pausable/resumable when TX ring space is exhausted.</li>
