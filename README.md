@@ -27,6 +27,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - This project does not claim heavy up-front design forethought. The long-term direction is known, but current implementation work is experimental and ideas are actively being tested.
 - Suggestions are welcome.
 - The only constant is that nothing is safe from change.
+- "Perfect is the enemy of good." - Voltaire
 
 ## Repository Layout
 
