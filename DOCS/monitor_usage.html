@@ -195,12 +195,14 @@ DBG_TAG_BUF   6 bytes</p>
 
   <h3>9.2) Canonical Input Compatibility</h3>
   <ul>
+    <li>Parser policy: token 1 selects namespace and remains locked for that line (no cross-namespace fallback).</li>
     <li><code>X S</code> and <code>XS</code> should map to the same internal command key.</li>
     <li><code>X R</code> and <code>XR</code> should map to the same internal command key.</li>
     <li><code>M D</code> and <code>MD</code> should map to the same internal command key.</li>
     <li><code>I O V</code> and <code>IOV</code> should map to the same internal command key.</li>
     <li><code>I C</code> and <code>IC</code> should map to the same internal command key.</li>
     <li>One canonical dispatch representation is preferred to avoid duplicate handlers.</li>
+    <li>Aliases are spelling variants only (same meaning); command override behavior is intentionally avoided.</li>
   </ul>
 
   <h3>9.3) Namespace Plan</h3>

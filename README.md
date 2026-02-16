@@ -141,11 +141,13 @@ Notes:
 ### Parser and Input Compatibility
 
 - Keep short monitor UX, but normalize equivalent forms internally.
+- Parser policy: token 1 selects namespace and stays locked for the line; no cross-namespace fallback after root selection.
 - `X S` and `XS` should resolve to the same command key.
 - `M D` and `MD` should resolve to the same command key.
 - `I O V` and `IOV` should resolve to the same command key.
 - `I C` and `IC` should resolve to the same command key.
 - One canonical dispatch key format will be used internally to avoid duplicated handlers.
+- Aliases are spelling variants only (same meaning); command override semantics are not used.
 - Alias windows will be used during migration so old commands still run while new forms are introduced.
 
 ### Compression + TX Output (Priority 0)
