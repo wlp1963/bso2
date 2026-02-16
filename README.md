@@ -24,6 +24,9 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 
 - Code size is not a current optimization target. This project currently assumes `32K RAM` and `32K ROM`.
 - Some code in this repository was generated with AI assistance. The `SXB/EDU` board is being used as a blank canvas, and AI assistance was used to accelerate delivery of the primary project goals.
+- This project does not claim heavy up-front design forethought. The long-term direction is known, but current implementation work is experimental and ideas are actively being tested.
+- Suggestions are welcome.
+- The only constant is that nothing is safe from change.
 
 ## Repository Layout
 
