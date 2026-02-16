@@ -10,9 +10,11 @@ Thanks for contributing to `bso2`.
 ## Workflow
 
 1. Create a feature branch.
-2. Keep commits focused (one behavior change per commit when practical).
-3. Update docs if command behavior or monitor output changes.
-4. Run a full build before opening a PR:
+2. Small commits are preferred (one behavior change per commit when practical).
+3. This is guidance, not strict enforcement; the maintainer does not always follow it perfectly.
+4. If you plan to work in large, sweeping changes as your normal style, please fork and maintain that style there.
+5. Update docs if command behavior or monitor output changes.
+6. Run a full build before opening a PR:
 
 ```powershell
 make -C SRC all

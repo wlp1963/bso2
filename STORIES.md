@@ -4,6 +4,19 @@
 
 - `2026-02-16T00:45:50-06:00` - Historical RLE design-note rationale documented across `README.md`, `STORIES.md`, and monitor docs.
 
+## Working Design Notes
+
+### Memory Residency Policy (Current Direction)
+
+- Keep `CODE` anchored at `$8000`.
+- Let `KDATA` float immediately behind `CODE`.
+- Treat bank 0 low 64K as always-resident core: reset path, ISR stubs, vector/dispatch tables, bank-switch glue, and minimal monitor.
+- Keep `KDATA` and other core tables below `$F000` (`$F000-$FFFF` remains reserved for ROM/vector/system assumptions).
+- Place feature-heavy code/data in flash bank 1/2 as callable modules.
+- Keep stable entry trampolines in bank 0 for cross-bank calls.
+- Keep vector targets in bank 0; vectors must not point directly into switchable banks.
+- Add an enforced build check later for `END_KDATA < $F000` (post-link map check is the reliable method with this toolchain).
+
 ## Author History (Draft)
 
 This project has roots in hands-on work from the late 1980s. Some dates and details are approximate and may be corrected over time.

@@ -6,7 +6,7 @@ all:	bso2
 
 bso2:	bso2.asm macros.inc
 	WDC02AS -g -l -s -DUSING_02 bso2.asm
-	WDCLN -g -sz -t -HZ -PFF -J -Q bso2 -C8000 -KE000
+	WDCLN -g -sz -t -HZ -PFF -J -Q bso2 -C8000
 	del /f *.obj *.sym
 
 upload:	

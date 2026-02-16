@@ -105,6 +105,7 @@ Notes:
 - In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
 - `A` supports relative-branch target entry via absolute hex address (range checked).
 - `A` supports explicit accumulator syntax such as `INC A`.
+- Fixed-address contract: PAGE0 is anchored at `$0040`; pinned bytes include `GAME_ASK_PENDING=$0088`, `RST_HOOK=$0089`, `NMI_HOOK=$008C`, `IRQ_HOOK=$008F`, `BRK_FLAG=$0092`; hardware vectors remain `NMI=$FFFA`, `RST=$FFFC`, `IRQ/BRK=$FFFE`.
 - See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
 
 ## Development
@@ -127,6 +128,7 @@ Notes:
 - The preferred grammar is `noun verb [args...]` (namespace first, action second).
 - Primary namespaces currently approved for growth: `B I T J X S M O`.
 - `TIME` is moving under `INFO`: `I T ...`.
+- Calculator is planned under `INFO`: `I C ...` (prefer RPN input style).
 - `T` is being repurposed for terminal-related commands.
 - Top-level `P` and `V` are being freed for namespace pressure.
 - PIA and VIA are moving under `INFO -> IO`:
@@ -140,6 +142,7 @@ Notes:
 - `X S` and `XS` should resolve to the same command key.
 - `M D` and `MD` should resolve to the same command key.
 - `I O V` and `IOV` should resolve to the same command key.
+- `I C` and `IC` should resolve to the same command key.
 - One canonical dispatch key format will be used internally to avoid duplicated handlers.
 - Alias windows will be used during migration so old commands still run while new forms are introduced.
 
@@ -190,6 +193,17 @@ Notes:
 - `B` is reserved for Bank/FLASH access.
 - FLASH flows should include read/program/erase/verify style operations under `B` subverbs.
 - FLASH operations are considered critical sections and must integrate with vector/NMI safety rules.
+
+### Memory Residency Policy (Working Contract)
+
+- Keep `CODE` anchored at `$8000`.
+- Let `KDATA` float immediately behind `CODE`.
+- Treat bank 0 low 64K as always-resident core: reset path, ISR stubs, vector/dispatch tables, bank-switch glue, and minimal monitor.
+- Keep `KDATA` and other core tables below `$F000` (`$F000-$FFFF` remains reserved for ROM/vector/system assumptions).
+- Place feature-heavy code/data in flash bank 1/2 as callable modules.
+- Keep stable entry trampolines in bank 0 for cross-bank calls.
+- Keep vector targets in bank 0; vectors must not point directly into switchable banks.
+- Add an enforced build check later for `END_KDATA < $F000` (post-link map check is the reliable method with this toolchain).
 
 ### Vector + Safety Direction (Required Before Publish)
 

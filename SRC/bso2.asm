@@ -70,9 +70,21 @@ PROTECT_HI_LIMIT        EQU         $04
                                         ; ADDR < $0400 IS PROTECTED (UNLESS
                                         ; FORCED)
 
+; --- FIXED ADDRESS CONTRACTS (LOW/HIGH) ---
+ZP_BASE_ADDR            EQU         $40
+ZP_GAME_ASK_ADDR        EQU         $88
+ZP_RST_HOOK_ADDR        EQU         $89
+ZP_NMI_HOOK_ADDR        EQU         $8C
+ZP_IRQ_HOOK_ADDR        EQU         $8F
+ZP_BRK_FLAG_ADDR        EQU         $92
+ZP_GUARD_END_EXCL       EQU         $00FF ; KEEP USAGE <= $00FE
+HW_VEC_NMI_ADDR         EQU         $FFFA
+HW_VEC_RST_ADDR         EQU         $FFFC
+HW_VEC_IRQ_ADDR         EQU         $FFFE
+
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
-                        ORG         $40
+                        ORG         ZP_BASE_ADDR
 
 
 PTR_TEMP:               DS          3   ; GEN PURPOSE SCRATCH
@@ -133,11 +145,21 @@ STEP_ACTIVE:            DS          1   ; 1 IF TEMP BRK IS CURRENTLY ARMED
 GAME_TARGET:            DS          1   ; TARGET VALUE FOR G NUMBER GAME (1..10)
 GAME_TRIES:             DS          1   ; REMAINING TRIES FOR G NUMBER GAME
 GAME_GUESS:             DS          1   ; LAST PARSED GUESS FOR G NUMBER GAME
+RNG_STATE:              DS          1   ; LIVE RNG STIR STATE
+                        DS          ZP_GAME_ASK_ADDR-* ; PIN ABI BYTE
+GAME_ASK_PENDING:       DS          1   ; FIXED @ $0088 (EXTERNAL/USER-FACING)
 
+                        DS          ZP_RST_HOOK_ADDR-* ; PIN RST TRAMPOLINE
 RST_HOOK:               DS          3   ; RST VECTOR JUMP
+                        DS          ZP_NMI_HOOK_ADDR-* ; PIN NMI TRAMPOLINE
 NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
+                        DS          ZP_IRQ_HOOK_ADDR-* ; PIN IRQ TRAMPOLINE
 IRQ_HOOK:               DS          3   ; IRQ VECTOR JUMP
+                        DS          ZP_BRK_FLAG_ADDR-* ; PIN DEBUG CONTEXT FLAG
 BRK_FLAG                DS          1
+
+; PAGE0 GUARD: RESERVE UP TO $00FE; NEGATIVE DS FAILS IF WE EVER CROSS IT
+                        DS          ZP_GUARD_END_EXCL-*
 
 SYSF_FORCE_MODE_M       EQU         %00000001 ; 1 IF COMMAND PREFIXED WITH '!'
 SYSF_NMI_FLAG_M         EQU         %00000010 ; 1 WHEN NMI SIGNAL IS PENDING
@@ -213,6 +235,8 @@ SYS_RST:
                         STZ         CMD_ESC_STATE
                         STZ         CMD_LAST_LEN
                         STZ         STEP_ACTIVE
+                        LDA         #$01 ; ASK ONCE AFTER RESET
+                        STA         GAME_ASK_PENDING
                         LDA         #SYSF_RESET_FLAG_M
                         TRB         SYS_FLAGS
                                         ; 0 = POWER-ON PATH, 1 = RESET PATH
@@ -281,6 +305,7 @@ MONITOR:                JSR         PRT_CRLF ; NEW LINE
                         JSR         RBUF_INIT ; RESET INPUT RING BUFFER
                         JSR         CMD_PARSER_INIT ; RESET COMMAND PARSER
 ?MONITOR_LOOP:
+                        INC         RNG_STATE ; LIVE STIR FROM LOOP CADENCE
                         JSR         INPUT_POLL_RING
                                         ; MOVE UART BYTES INTO RING
                         JSR         CMD_PARSE_RING ; BUILD COMMANDS FROM RING
@@ -594,6 +619,12 @@ INPUT_POLL_RING:
                         JSR         CHECK_BYTE
                         BCS         ?IPOLL_DONE ; C=1 => NO BYTE AVAILABLE
                         JSR         READ_BYTE
+                        PHA
+                        EOR         RNG_STATE
+                        ROL         A
+                        ADC         #$17
+                        STA         RNG_STATE
+                        PLA
                         JSR         RBUF_PUT_A ; DROP BYTE IF BUFFER FULL
                         BRA         ?IPOLL_LOOP
 ?IPOLL_DONE:
@@ -818,6 +849,9 @@ CMD_PROCESS_IF_READY:
 ?CPROC_DISPATCH:
                         LDA         CMD_LINE
                         BEQ         ?CPROC_PROMPT
+                        JSR         CMD_PRE_HOOK
+                        LDA         CMD_LINE
+                        BEQ         ?CPROC_PROMPT
                         JSR         CMD_DISPATCH
                         BCC         ?CPROC_PROMPT
                         PRT_CSTRING MSG_UNKNOWN_CMD
@@ -835,9 +869,36 @@ CMD_PROCESS_IF_READY:
                         TRB         SYS_FLAGS
                         LDA         #SYSF_GO_FLAG_M
                         TRB         SYS_FLAGS
+                        LDA         CMD_LINE
+                        BEQ         ?CPROC_PRINT_PROMPT
+                        JSR         CMD_ASK_GAME_IF_PENDING
+?CPROC_PRINT_PROMPT:
                         JSR         PRT_CRLF
                         JSR         PRT_UNDER
 ?CPROC_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_ASK_GAME_IF_PENDING
+; DESCRIPTION: PRINTS "WANT TO PLAY A GAME?" ONCE WHEN PENDING FLAG IS SET
+; INPUT: GAME_ASK_PENDING (0/1)
+; OUTPUT: MAY PRINT PROMPT LINE
+; ----------------------------------------------------------------------------
+CMD_ASK_GAME_IF_PENDING:
+                        LDA         GAME_ASK_PENDING
+                        BEQ         ?CMGA_DONE
+                        STZ         GAME_ASK_PENDING
+                        PRT_CSTRING MSG_GAME_ASK
+?CMGA_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_PRE_HOOK
+; DESCRIPTION: PRE-DISPATCH COMMAND HOOK (NO-OP PLACEHOLDER)
+; INPUT: CMD_LINE
+; OUTPUT: NONE
+; ----------------------------------------------------------------------------
+CMD_PRE_HOOK:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -1189,6 +1250,7 @@ RNG_MIX_NCAXR:
                         ; INITIALIZE RNG STATE.
                         LDA         RBUF_HEAD
                         EOR         CMD_LAST_LEN
+                        EOR         RNG_STATE
                         STA         GAME_TARGET
 
                         ; SCAN STATE WINDOW.
@@ -1217,6 +1279,11 @@ RNG_MIX_NCAXR:
                         BCC         ?RNG_MIX_SCAN
 
                         LDA         GAME_TARGET
+                        EOR         RNG_STATE
+                        ROL         A
+                        ADC         #$3D
+                        STA         RNG_STATE
+                        LDA         RNG_STATE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -1966,6 +2033,10 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_32
                         PRT_CSTRING MSG_HELP_FULL_33
                         PRT_CSTRING MSG_HELP_FULL_34
+                        PRT_CSTRING MSG_HELP_FULL_35
+                        PRT_CSTRING MSG_HELP_FULL_36
+                        PRT_CSTRING MSG_HELP_FULL_37
+                        PRT_CSTRING MSG_HELP_FULL_38
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2155,6 +2226,8 @@ CMD_DO_UNASM:
 ; DESCRIPTION: TINY 65C02 ASSEMBLER
 ; USAGE: A <START> [MNEMONIC OPERANDS]
 ; INTERACTIVE: PROMPTS "A <ADDR>:", ACCEPTS "."
+; INTERNAL NOTE (NOT FOR PUBLISH):
+; IF/THEN/ELSE IN COLUMN 1 ARE RESERVED LABELS FOR FUTURE ASM DIALECT WORK.
 ; ----------------------------------------------------------------------------
 CMD_DO_ASM:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
@@ -3876,101 +3949,6 @@ CMD_PARSE_ADDR16_TOKEN:
                         RTS
 
 ; ----------------------------------------------------------------------------
-; SUBROUTINE: HEX_TO_NIBBLE
-; DESCRIPTION: CONVERTS ASCII HEX [0-9A-F] IN ACC TO BINARY NIBBLE
-; INPUT: ACC = ASCII CHAR
-; OUTPUT: ACC = NIBBLE, C=1 IF VALID, C=0 IF INVALID
-; ----------------------------------------------------------------------------
-HEX_TO_NIBBLE:
-                        CMP         #'0'
-                        BCC         ?HTN_BAD
-                        CMP         #':'
-                        BCC         ?HTN_DEC
-                        CMP         #'A'
-                        BCC         ?HTN_BAD
-                        CMP         #'G'
-                        BCS         ?HTN_BAD
-                        SEC
-                        SBC         #'A'-10
-                        RTS
-?HTN_DEC:
-                        SEC
-                        SBC         #'0'
-                        RTS
-?HTN_BAD:
-                        CLC
-                        RTS
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CHECK_BYTE
-; DESCRIPTION: CHECKS UART STATUS
-; INPUT: NONE
-; OUTPUT: ACC = STATUS
-; FLAGS: CARRY SET IF BUFFER EMPTY
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-CHECK_BYTE:
-                        JSR         WDC_CHECK_BYTE ; CALL ROM STATUS
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; PROVENANCE NOTE:
-; The hex-to-ASCII adjustment pattern below follows the method described in:
-;   - "6502 Assembly Language Programming" (Lance A. Leventhal), p. 7-3
-; Leventhal cites (superscript 1; bibliographic entry listed on p. 7-15):
-;   - D. R. Allison, "A Design Philosophy for Microcomputer Architectures."
-;     Computer, February 1977, pp. 35-41.
-; ----------------------------------------------------------------------------
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CVT_NIBBLE
-; DESCRIPTION: CONVERTS LOW NIBBLE IN ACC TO ASCII HEX
-; INPUT: ACC = VALUE (0-F)
-; OUTPUT: ACC = ASCII ('0'-'9', 'A'-'F')
-; FLAGS: DECIMAL MODIFIED THEN CLEARED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-CVT_NIBBLE:
-                        SED             ; SET DECIMAL
-                        CLC             ; CLEAR CARRY
-                        ADC         #$90 ; MAGIC HEX ADC
-                        ADC         #$40 ; ADJUST FOR ASCII
-                        CLD             ; CLEAR DECIMAL
-                        RTS             ; RETURN CHAR
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CVT_PRT_NIBBLE
-; DESCRIPTION: CONVERTS AND PRINTS NIBBLE
-; INPUT: ACC = VALUE
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-CVT_PRT_NIBBLE:
-                        JSR         CVT_NIBBLE ; CONVERT TO ASCII
-                        JSR         WRITE_BYTE ; PRINT CHAR
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_HEX
-; DESCRIPTION: PRINTS 8-BIT VALUE IN HEX
-; INPUT: ACC = BYTE
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-PRT_HEX:
-                        PUSH        A   ; SAVE ACC
-                        LSR         A   ; SHIFT HI NIBBLE
-                        LSR         A   ; DOWN
-                        LSR         A   ; TO
-                        LSR         A   ; LO
-                        JSR         CVT_PRT_NIBBLE ; PRINT HI NIBBLE
-                        PULL        A   ; RESTORE ACC
-                        AND         #%00001111 ; MASK LO NIBBLE
-                        JSR         CVT_PRT_NIBBLE ; PRINT LO NIBBLE
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
 ; SUBROUTINE: DEBUG
 ; DESCRIPTION: DEBUG ENTRY ALIAS FOR JSR CONTEXT
 ; ----------------------------------------------------------------------------
@@ -4576,27 +4554,6 @@ PRT_UNDER:              PUSH        A
                         RTS
 
 ; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_C_STRING
-; DESCRIPTION: PRINTS NULL-TERMINATED STRING
-; INPUT: STR_PTR (ZP) = ADDR OF STRING
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: STR_PTR
-; ----------------------------------------------------------------------------
-PRT_C_STRING:           PUSH        A, Y ; SAVE REGS
-                        LDY         #$00 ; RESET INDEX
-?STRING_LOOP:           LDA         (STR_PTR),Y ; GET CHAR
-                        BEQ         ?STRING_DONE ; EXIT IF NULL
-                        JSR         WRITE_BYTE ; SEND CHAR
-                        INY             ; NEXT INDEX
-                        BNE         ?STRING_LOOP ; LOOP IF NOT WRAP
-                        INC         STR_PTR+1 ; CROSS PAGE
-                        BRA         ?STRING_LOOP ; REPEAT
-?STRING_DONE:           PULL        Y, A ; RESTORE
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; ----------------------------------------------------------------------------
 ; SUBROUTINE: INIT_NMI / INIT_IRQ
 ; DESCRIPTION: SETS HARDWARE JUMP VECTORS IN ZP RAM
 ; ----------------------------------------------------------------------------
@@ -4627,8 +4584,8 @@ INIT_RST:
                         TXS             ; MOVE TO SP
 
         ; --- INIT ALL VECTORS ---
-                        JSR         INIT_NMI ; Setup NMI Hook ($0095)
-                        JSR         INIT_IRQ ; Setup IRQ Hook ($0098)
+                        JSR         INIT_NMI ; Setup NMI_HOOK trampoline
+                        JSR         INIT_IRQ ; Setup IRQ_HOOK trampoline
 
                         LDA         #$4C ; JMP OPCODE
                         STA         RST_HOOK ; STORE
@@ -4645,6 +4602,8 @@ INIT_RST:
 SYS_NMI:                SEI             ; LOCK INTS
                         CLD             ; CLEAR DEC
                         JSR         DEBUG_NMI
+                        LDA         #$01 ; ASK ONCE AFTER NMI RETURNS TO MONITOR
+                        STA         GAME_ASK_PENDING
                         LDA         #SYSF_NMI_FLAG_M
                         TSB         SYS_FLAGS
                         LDA         #SYSF_GO_FLAG_M
@@ -5296,27 +5255,27 @@ SHOW_VECTORS:
 
         ; --- SHOW RESET CHAIN ---
                         PRT_CSTRING STR_RST ; "RST: "
-                        LDA         #$FC ; $FFFC (Reset Vector Low)
+                        LDA         #<HW_VEC_RST_ADDR
                         STA         PTR_TEMP
-                        LDA         #$FF ; $FFFC (Reset Vector High)
+                        LDA         #>HW_VEC_RST_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
                         JSR         PRT_CRLF
 
         ; --- SHOW NMI CHAIN ---
                         PRT_CSTRING STR_NMI ; "NMI: "
-                        LDA         #$FA ; $FFFA (NMI Vector Low)
+                        LDA         #<HW_VEC_NMI_ADDR
                         STA         PTR_TEMP
-                        LDA         #$FF ; $FFFA (NMI Vector High)
+                        LDA         #>HW_VEC_NMI_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
                         JSR         PRT_CRLF
 
         ; --- SHOW IRQ CHAIN ---
                         PRT_CSTRING STR_IRQ ; "IRQ: "
-                        LDA         #$FE ; $FFFE (IRQ Vector Low)
+                        LDA         #<HW_VEC_IRQ_ADDR
                         STA         PTR_TEMP
-                        LDA         #$FF ; $FFFE (IRQ Vector High)
+                        LDA         #>HW_VEC_IRQ_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
                         JSR         PRT_CRLF
@@ -5375,14 +5334,14 @@ FOLLOW_CHAIN:
                         BRA         ?CHAIN_LOOP
 
 ?CHECK_BRIDGE_2:
-        ; --- BRIDGE 2: INIT_RST -> RST_HOOK (0092) ---
+        ; --- BRIDGE 2: INIT_RST -> RST_HOOK ($0089) ---
                         LDA         PTR_LEG+1
                         CMP         #>INIT_RST
                         BNE         ?NORMAL_TRACE
                         LDA         PTR_LEG
                         CMP         #<INIT_RST
                         BNE         ?NORMAL_TRACE
-                        LDA         #<RST_HOOK ; Force to ZP hook $92
+                        LDA         #<RST_HOOK ; Force to ZP hook $89
                         STA         PTR_LEG
                         LDA         #>RST_HOOK
                         STA         PTR_LEG+1
@@ -5436,6 +5395,125 @@ FOLLOW_CHAIN:
 
 ?END_CHAIN:
                         RTS
+
+; ----------------------------------------------------------------------------
+; STABLE UTILITY ROUTINES (LOW CHURN)
+; ----------------------------------------------------------------------------
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: HEX_TO_NIBBLE
+; DESCRIPTION: CONVERTS ASCII HEX [0-9A-F] IN ACC TO BINARY NIBBLE
+; INPUT: ACC = ASCII CHAR
+; OUTPUT: ACC = NIBBLE, C=1 IF VALID, C=0 IF INVALID
+; ----------------------------------------------------------------------------
+HEX_TO_NIBBLE:
+                        CMP         #'0'
+                        BCC         ?HTN_BAD
+                        CMP         #':'
+                        BCC         ?HTN_DEC
+                        CMP         #'A'
+                        BCC         ?HTN_BAD
+                        CMP         #'G'
+                        BCS         ?HTN_BAD
+                        SEC
+                        SBC         #'A'-10
+                        RTS
+?HTN_DEC:
+                        SEC
+                        SBC         #'0'
+                        RTS
+?HTN_BAD:
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CHECK_BYTE
+; DESCRIPTION: CHECKS UART STATUS
+; INPUT: NONE
+; OUTPUT: ACC = STATUS
+; FLAGS: CARRY SET IF BUFFER EMPTY
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+CHECK_BYTE:
+                        JSR         WDC_CHECK_BYTE ; CALL ROM STATUS
+                        RTS             ; DONE
+
+; ----------------------------------------------------------------------------
+; PROVENANCE NOTE:
+; The hex-to-ASCII adjustment pattern below follows the method described in:
+;   - "6502 Assembly Language Programming" (Lance A. Leventhal), p. 7-3
+; Leventhal cites (superscript 1; bibliographic entry listed on p. 7-15):
+;   - D. R. Allison, "A Design Philosophy for Microcomputer Architectures."
+;     Computer, February 1977, pp. 35-41.
+; ----------------------------------------------------------------------------
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CVT_NIBBLE
+; DESCRIPTION: CONVERTS LOW NIBBLE IN ACC TO ASCII HEX
+; INPUT: ACC = VALUE (0-F)
+; OUTPUT: ACC = ASCII ('0'-'9', 'A'-'F')
+; FLAGS: DECIMAL MODIFIED THEN CLEARED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+CVT_NIBBLE:
+                        SED             ; SET DECIMAL
+                        CLC             ; CLEAR CARRY
+                        ADC         #$90 ; MAGIC HEX ADC
+                        ADC         #$40 ; ADJUST FOR ASCII
+                        CLD             ; CLEAR DECIMAL
+                        RTS             ; RETURN CHAR
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CVT_PRT_NIBBLE
+; DESCRIPTION: CONVERTS AND PRINTS NIBBLE
+; INPUT: ACC = VALUE
+; OUTPUT: NONE
+; FLAGS: UNCHANGED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+CVT_PRT_NIBBLE:
+                        JSR         CVT_NIBBLE ; CONVERT TO ASCII
+                        JSR         WRITE_BYTE ; PRINT CHAR
+                        RTS             ; DONE
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_HEX
+; DESCRIPTION: PRINTS 8-BIT VALUE IN HEX
+; INPUT: ACC = BYTE
+; OUTPUT: NONE
+; FLAGS: UNCHANGED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+PRT_HEX:
+                        PUSH        A   ; SAVE ACC
+                        LSR         A   ; SHIFT HI NIBBLE
+                        LSR         A   ; DOWN
+                        LSR         A   ; TO
+                        LSR         A   ; LO
+                        JSR         CVT_PRT_NIBBLE ; PRINT HI NIBBLE
+                        PULL        A   ; RESTORE ACC
+                        AND         #%00001111 ; MASK LO NIBBLE
+                        JSR         CVT_PRT_NIBBLE ; PRINT LO NIBBLE
+                        RTS             ; DONE
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_C_STRING
+; DESCRIPTION: PRINTS NULL-TERMINATED STRING
+; INPUT: STR_PTR (ZP) = ADDR OF STRING
+; OUTPUT: NONE
+; FLAGS: UNCHANGED
+; ZP USED: STR_PTR
+; ----------------------------------------------------------------------------
+PRT_C_STRING:           PUSH        A, Y ; SAVE REGS
+                        LDY         #$00 ; RESET INDEX
+?STRING_LOOP:           LDA         (STR_PTR),Y ; GET CHAR
+                        BEQ         ?STRING_DONE ; EXIT IF NULL
+                        JSR         WRITE_BYTE ; SEND CHAR
+                        INY             ; NEXT INDEX
+                        BNE         ?STRING_LOOP ; LOOP IF NOT WRAP
+                        INC         STR_PTR+1 ; CROSS PAGE
+                        BRA         ?STRING_LOOP ; REPEAT
+?STRING_DONE:           PULL        Y, A ; RESTORE
+                        RTS             ; DONE
 
 MAIN_INIT:
                         JSR         INIT_IRQ ; SETUP IRQ JUMP
@@ -5651,6 +5729,17 @@ MSG_HELP_FULL_33:       DB          $0D, $0A
                         DB          "P / I O V", 0
 MSG_HELP_FULL_34:       DB          $0D, $0A
                         DB          "  PROVISO          CHANGE IS CONSTANT", 0
+MSG_HELP_FULL_35:       DB          $0D, $0A
+                        DB          "  POST ASK         ONE-SHOT AFTER RESET/NMI"
+                        DB          0
+MSG_HELP_FULL_36:       DB          $0D, $0A
+                        DB          "  FLAG @ $0088     FIXED: !M 88 01=SET  !M 8"
+                        DB          "8 00=CLEAR", 0
+MSG_HELP_FULL_37:       DB          $0D, $0A
+                        DB          "  HOOKS @          $0089/$008C/$008F FIXED"
+                        DB          0
+MSG_HELP_FULL_38:       DB          $0D, $0A
+                        DB          "  HW VECTORS @     $FFFA/$FFFC/$FFFE", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0
@@ -5675,10 +5764,8 @@ MSG_LB_READY:           DB          $0D, $0A, "L B READY - SEND RAW BYTES", 0
 MSG_LB_DONE:            DB          $0D, $0A, "L B LOAD COMPLETE", 0
 MSG_LB_ABORT:           DB          $0D, $0A, "L B ABORTED", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
-MSG_GAME_INTRO:         DB          $0D, $0A
-                        DB          "WANT TO PLAY A GAME?"
-                        DB          $0D, $0A
-                        DB          "I AM THINKING OF A NUMBER (1-10)", 0
+MSG_GAME_ASK:           DB          $0D, $0A, "WANT TO PLAY A GAME?", 0
+MSG_GAME_INTRO:         DB          $0D, $0A, "I AM THINKING OF A NUMBER (1-10)", 0
 MSG_GAME_PROMPT:        DB          $0D, $0A, "? ", 0
 MSG_GAME_BAD_INPUT:     DB          $0D, $0A, "ENTER 1..10", 0
 MSG_GAME_LOW:           DB          $0D, $0A, "TOO LOW", 0

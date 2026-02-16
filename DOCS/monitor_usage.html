@@ -80,6 +80,8 @@ M = enter monitor</p>
     <li><code>F</code> does not support interactive mode.</li>
     <li>At an empty monitor prompt, <code>Up Arrow</code> (<code>ESC [ A</code>) repeats and executes the previous command.</li>
     <li><code>F/M/C/A/N</code> block access to <code>$0000-$03FF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
+    <li>Post-command game ask hook is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
+    <li>Hook flag is fixed/reserved at <code>$0088</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 88 01</code> sets pending; <code>!M 88 00</code> clears pending.</li>
   </ul>
 
   <h2>4) Verify / Error Outputs</h2>
@@ -146,16 +148,20 @@ M = enter monitor</p>
   <h3>Build Section Usage (current)</h3>
   <table>
     <tr><th>Section</th><th>ORG</th><th>Size (hex)</th><th>Size (dec)</th></tr>
-    <tr><td>PAGE0</td><td><code>$0040</code></td><td><code>$4A</code></td><td>74</td></tr>
-    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$1A22</code></td><td>6690</td></tr>
-    <tr><td>KDATA</td><td><code>$E000</code></td><td><code>$B25</code></td><td>2853</td></tr>
+    <tr><td>PAGE0</td><td><code>$0040</code></td><td><code>$BF</code></td><td>191</td></tr>
+    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$2227</code></td><td>8743</td></tr>
+    <tr><td>KDATA</td><td><code>$A227</code></td><td><code>$1066</code></td><td>4198</td></tr>
     <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$7A</code></td><td>122</td></tr>
-    <tr><td>Total</td><td>-</td><td><code>$260B</code></td><td>9739</td></tr>
+    <tr><td>Total</td><td>-</td><td><code>$33C6</code></td><td>13254</td></tr>
   </table>
 
   <h3>RAM Layout Highlights</h3>
   <ul>
     <li>PAGE0 starts at <code>$0040</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
+    <li>Guard policy reserves PAGE0 through <code>$00FE</code> to enforce a hard ceiling for this monitor build.</li>
+    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A227</code>).</li>
+    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0088</code>, <code>RST_HOOK=$0089</code>, <code>NMI_HOOK=$008C</code>, <code>IRQ_HOOK=$008F</code>, <code>BRK_FLAG=$0092</code>.</li>
+    <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
     <li>UDATA starts at <code>$0200</code>:</li>
   </ul>
   <p class="mono">RBUF_DATA    32 bytes
@@ -190,6 +196,7 @@ DBG_TAG_BUF   6 bytes</p>
     <li><code>X R</code> and <code>XR</code> should map to the same internal command key.</li>
     <li><code>M D</code> and <code>MD</code> should map to the same internal command key.</li>
     <li><code>I O V</code> and <code>IOV</code> should map to the same internal command key.</li>
+    <li><code>I C</code> and <code>IC</code> should map to the same internal command key.</li>
     <li>One canonical dispatch representation is preferred to avoid duplicate handlers.</li>
   </ul>
 
@@ -199,6 +206,7 @@ DBG_TAG_BUF   6 bytes</p>
     <tr><td><code>B</code></td><td>Bank / FLASH</td><td>Reserved for FLASH-related operations (read/program/erase/verify family).</td></tr>
     <tr><td><code>I</code></td><td>Info root</td><td>Carries nested subfamilies such as time and I/O.</td></tr>
     <tr><td><code>I T</code></td><td>Time</td><td>Time moves under Info; top-level <code>T</code> is freed.</td></tr>
+    <tr><td><code>I C</code></td><td>Calculator</td><td>Planned calculator entry under Info; prefer RPN input style.</td></tr>
     <tr><td><code>T</code></td><td>Terminal</td><td>Repurposed top-level namespace for terminal-related operations.</td></tr>
     <tr><td><code>I O P</code></td><td>PIA</td><td>Top-level <code>P</code> is freed; PIA moves under Info/IO.</td></tr>
     <tr><td><code>I O V</code></td><td>VIA</td><td>Top-level <code>V</code> is freed; VIA moves under Info/IO.</td></tr>
