@@ -31,7 +31,7 @@ Quoted guidance:
 
 This project has roots in hands-on work from the late 1980s. Some dates and details are approximate and may be corrected over time.
 
-In 1987, while IBM was introducing major new hardware such as the 8514/A graphics adapter and the 3363 WORM drive, I was working at a small bank data-processing software company. I had dropped out of DeVry in Dallas. One day, walking along an oil-top road, a man in a Cadillac stopped, asked if I was Walter Preuninger, and offered me a job on the spot.
+In 1987, while IBM was introducing major new hardware such as the 8514/A graphics adapter and the 3363 WORM drive, I was working at Computer Bank, Inc. I had dropped out of DeVry in Dallas. One day, walking along an oil-top road, a man in a Cadillac stopped, asked if I was Walter Preuninger, and offered me a job on the spot.
 
 I ran IBM System/36 operations (including a 5360), magnetic tape drives, line printers, and even a microfiche printer. I captured checks, balanced reports, and processed POD, DDA, LN, and GL applications. I changed boxes of one-part and three-part green bar, handled data mailers, and ran CD interest check cycles.
 
