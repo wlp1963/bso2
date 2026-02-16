@@ -1118,10 +1118,10 @@ CMD_DO_NEXT:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_GAME
-; DESCRIPTION: SIMPLE NUMBER GUESS GAME
+; DESCRIPTION: PLAYS A 3-TRY NUMBER GUESS GAME
 ; USAGE: G
 ; RULES:
-;   - TARGET IS 1..10 (DERIVED FROM 1-BYTE ZP ADD + SCALE).
+;   - TARGET IS 1..10.
 ;   - PLAYER HAS 3 CHANCES.
 ; ----------------------------------------------------------------------------
 CMD_DO_GAME:
@@ -1166,23 +1166,83 @@ CMD_DO_GAME:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: GAME_PICK_TARGET
-; DESCRIPTION: GENERATES TARGET IN RANGE 1..10 USING 1-BYTE ZP ADD
+; DESCRIPTION: SETS GAME_TARGET IN RANGE 1..10
 ; OUTPUT: GAME_TARGET = 1..10
 ; ----------------------------------------------------------------------------
 GAME_PICK_TARGET:
-                        LDA         RBUF_HEAD
+                        JSR         RNG_MIX_NCAXR ; A = RAW RNG BYTE
+                        LDX         #$0A ; RANGE SIZE = 10
+                        JSR         RNG_MOD_N ; A = 0..9
                         CLC
-                        ADC         CMD_LAST_LEN
-?GPT_MOD10:
-                        CMP         #$0A
-                        BCC         ?GPT_DONE
-                        SEC
-                        SBC         #$0A
-                        BRA         ?GPT_MOD10
-?GPT_DONE:
-                        CLC
-                        ADC         #$01
+                        ADC         #$01 ; A = 1..10
                         STA         GAME_TARGET
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RNG_MIX_NCAXR
+; DESCRIPTION: RETURNS A NON-CRYPTOGRAPHIC RNG BYTE
+;              SOURCE WINDOW: $0040..$02FF
+; OUTPUT: A = RNG BYTE (0..255)
+; CLOBBERS: A,Y, PTR_LEG, GAME_TARGET
+; ----------------------------------------------------------------------------
+RNG_MIX_NCAXR:
+                        ; INITIALIZE RNG STATE.
+                        LDA         RBUF_HEAD
+                        EOR         CMD_LAST_LEN
+                        STA         GAME_TARGET
+
+                        ; SCAN STATE WINDOW.
+                        LDA         #<PTR_TEMP
+                        STA         PTR_LEG
+                        LDA         #>PTR_TEMP
+                        STA         PTR_LEG+1
+?RNG_MIX_SCAN:
+                        LDY         #$00
+                        LDA         (PTR_LEG),Y
+                        CLC
+                        ADC         GAME_TARGET
+                        ROL         A
+                        EOR         PTR_LEG
+                        LSR         A
+                        CLC
+                        ADC         GAME_TARGET
+                        STA         GAME_TARGET
+
+                        INC         PTR_LEG
+                        BNE         ?RNG_MIX_SCAN_CHECK
+                        INC         PTR_LEG+1
+?RNG_MIX_SCAN_CHECK:
+                        LDA         PTR_LEG+1
+                        CMP         #$03 ; STOP WHEN POINTER REACHES $0300
+                        BCC         ?RNG_MIX_SCAN
+
+                        LDA         GAME_TARGET
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RNG_MOD_N
+; DESCRIPTION: MAPS A RANDOM BYTE TO 0..N-1
+; INPUT: A = RANDOM BYTE (0..255), X = N (0..255)
+; OUTPUT: A = A MOD N (IF N=0, A IS RETURNED UNCHANGED)
+; CLOBBERS: A, CMD_PARSE_NIB, MOD_COUNT
+; ----------------------------------------------------------------------------
+RNG_MOD_N:
+                        CPX         #$00
+                        BEQ         ?RMN_DONE ; N=0 => RAW BYTE PATH
+                        STA         CMD_PARSE_NIB ; REMAINDER
+                        TXA
+                        STA         MOD_COUNT ; DIVISOR
+?RMN_LOOP:
+                        LDA         CMD_PARSE_NIB
+                        CMP         MOD_COUNT
+                        BCC         ?RMN_OUT
+                        SEC
+                        SBC         MOD_COUNT
+                        STA         CMD_PARSE_NIB
+                        BRA         ?RMN_LOOP
+?RMN_OUT:
+                        LDA         CMD_PARSE_NIB
+?RMN_DONE:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -3854,6 +3914,14 @@ CHECK_BYTE:
                         RTS             ; DONE
 
 ; ----------------------------------------------------------------------------
+; PROVENANCE NOTE:
+; The hex-to-ASCII adjustment pattern below follows the method described in:
+;   - "6502 Assembly Language Programming" (Lance A. Leventhal), p. 7-3
+; Leventhal cites (superscript 1; bibliographic entry listed on p. 7-15):
+;   - D. R. Allison, "A Design Philosophy for Microcomputer Architectures."
+;     Computer, February 1977, pp. 35-41.
+; ----------------------------------------------------------------------------
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: CVT_NIBBLE
 ; DESCRIPTION: CONVERTS LOW NIBBLE IN ACC TO ASCII HEX
 ; INPUT: ACC = VALUE (0-F)
@@ -5608,6 +5676,8 @@ MSG_LB_DONE:            DB          $0D, $0A, "L B LOAD COMPLETE", 0
 MSG_LB_ABORT:           DB          $0D, $0A, "L B ABORTED", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
 MSG_GAME_INTRO:         DB          $0D, $0A
+                        DB          "WANT TO PLAY A GAME?"
+                        DB          $0D, $0A
                         DB          "I AM THINKING OF A NUMBER (1-10)", 0
 MSG_GAME_PROMPT:        DB          $0D, $0A, "? ", 0
 MSG_GAME_BAD_INPUT:     DB          $0D, $0A, "ENTER 1..10", 0
