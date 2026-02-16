@@ -26,6 +26,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Some code in this repository was generated with AI assistance. The `SXB/EDU` board is being used as a blank canvas, and AI assistance was used to accelerate delivery of the primary project goals.
 - This project does not claim heavy up-front design forethought. The long-term direction is known, but current implementation work is experimental and ideas are actively being tested.
 - Suggestions are welcome.
+- If you build something useful from this project, I'd love to hear about it and follow your work.
 - The only constant is that nothing is safe from change.
 - "Perfect is the enemy of good." - Voltaire
 - Milestone: historical RLE design-note rationale documented at `2026-02-16T00:45:50-06:00`.
