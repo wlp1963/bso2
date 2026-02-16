@@ -173,7 +173,75 @@ DBG_TAG_BUF   6 bytes</p>
     <li><code>Q</code> path relies on NMI latch (<code>SYSF_NMI_FLAG_M</code>) and then re-enters monitor cleanly.</li>
   </ul>
 
-  <h2>9) Legal Notice</h2>
+  <h2>9) Planned Commands (Appendix, Provisional)</h2>
+  <p>This appendix documents planned command architecture and roadmap intent only.</p>
+  <p><strong>Proviso:</strong> change is constant. These plans are not stable API and may change before publish.</p>
+
+  <h3>9.1) Grammar Direction</h3>
+  <ul>
+    <li>Primary model: <code>noun verb [args...]</code> (namespace first, action second).</li>
+    <li>Direct-action commands may still exist where practical (for example jump/execute style flow).</li>
+    <li>Parser should accept both spaced and fused forms for operator speed.</li>
+  </ul>
+
+  <h3>9.2) Canonical Input Compatibility</h3>
+  <ul>
+    <li><code>X S</code> and <code>XS</code> should map to the same internal command key.</li>
+    <li><code>X R</code> and <code>XR</code> should map to the same internal command key.</li>
+    <li><code>M D</code> and <code>MD</code> should map to the same internal command key.</li>
+    <li><code>I O V</code> and <code>IOV</code> should map to the same internal command key.</li>
+    <li>One canonical dispatch representation is preferred to avoid duplicate handlers.</li>
+  </ul>
+
+  <h3>9.3) Namespace Plan</h3>
+  <table>
+    <tr><th style="width:14%">Root</th><th style="width:30%">Planned Role</th><th style="width:56%">Notes</th></tr>
+    <tr><td><code>B</code></td><td>Bank / FLASH</td><td>Reserved for FLASH-related operations (read/program/erase/verify family).</td></tr>
+    <tr><td><code>I</code></td><td>Info root</td><td>Carries nested subfamilies such as time and I/O.</td></tr>
+    <tr><td><code>I T</code></td><td>Time</td><td>Time moves under Info; top-level <code>T</code> is freed.</td></tr>
+    <tr><td><code>T</code></td><td>Terminal</td><td>Repurposed top-level namespace for terminal-related operations.</td></tr>
+    <tr><td><code>I O P</code></td><td>PIA</td><td>Top-level <code>P</code> is freed; PIA moves under Info/IO.</td></tr>
+    <tr><td><code>I O V</code></td><td>VIA</td><td>Top-level <code>V</code> is freed; VIA moves under Info/IO.</td></tr>
+    <tr><td><code>I O V T</code></td><td>VIA timers</td><td>Hardware timers are expected under VIA tree.</td></tr>
+    <tr><td><code>J</code></td><td>Jump / Execute</td><td>Preferred home for execute flow if top-level execute letter changes.</td></tr>
+    <tr><td><code>X</code></td><td>Transfer / XMODEM</td><td>At minimum: send and receive support.</td></tr>
+    <tr><td><code>S</code></td><td>Search</td><td>Text and binary search families.</td></tr>
+    <tr><td><code>M</code></td><td>Memory family</td><td>Supports compact forms such as <code>MD</code>/<code>MM</code> as aliases.</td></tr>
+    <tr><td><code>O</code></td><td>Deferred decision</td><td>Candidate: chained execution wrapper; decision postponed.</td></tr>
+  </table>
+
+  <h3>9.4) Search Family Detail</h3>
+  <ul>
+    <li>Planned base forms: <code>S C START END &lt;text&gt;</code> and <code>S B START END &lt;pattern...&gt;</code>.</li>
+    <li><code>S C</code> mode: unquoted text stops at first whitespace.</li>
+    <li><code>S C</code> mode: quoted delimiters can include <code>"</code>, <code>'</code>, and <code>`</code>.</li>
+    <li><code>S C</code> mode: delimiter escape by doubling delimiter character.</li>
+    <li><code>S B</code> mode tokens: <code>HH</code> byte, <code>HHHH</code> little-endian word, nibble wildcard (<code>?A</code>/<code>A?</code>/<code>??</code>), and <code>*</code> byte wildcard.</li>
+    <li>Candidate extensions: Pascal strings and high-bit-set text search modes.</li>
+  </ul>
+
+  <h3>9.5) XMODEM Requirement</h3>
+  <ul>
+    <li>Before publish, provide both XMODEM receive and send paths.</li>
+    <li>Preferred forms: <code>X R ...</code> and <code>X S ...</code> with fused aliases (<code>XR</code>, <code>XS</code>).</li>
+  </ul>
+
+  <h3>9.6) Vector + Safety Direction (Pre-Publish Requirement)</h3>
+  <ul>
+    <li>Vector updates must support dynamic atomic update behavior.</li>
+    <li>Critical windows include vector commit and FLASH routines.</li>
+    <li>During critical windows, all EDU LEDs should flash to signal that NMI should not be pressed.</li>
+    <li>NMI path should be guarded/deferred during critical windows instead of normal debug flow.</li>
+    <li>Staged-update plus atomic-commit behavior is the intended implementation pattern.</li>
+  </ul>
+
+  <h3>9.7) Deferred Item</h3>
+  <ul>
+    <li><code>O</code> command semantics are intentionally deferred.</li>
+    <li>If adopted as an operation chain wrapper, error policy and guard policy must be defined explicitly.</li>
+  </ul>
+
+  <h2>10) Legal Notice</h2>
   <ul>
     <li><code>WDC</code>, <code>W65C02</code>, and <code>W65C02EDU</code> are names associated with Western Design Center, Inc.</li>
     <li>This project is independent and is not affiliated with or endorsed by Western Design Center, Inc.</li>

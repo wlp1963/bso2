@@ -114,21 +114,78 @@ Notes:
 
 ## Future / TODO
 
-- Add `S` search command family.
-- Parser shape (planned): `S C START END <text>` and `S B START END <pattern...>`.
-- Mainline parser strategy (planned): keep current single-letter command dispatch and add a shared tokenizer for subcommands/quoted arguments.
-- Possible fork path (future): full string-driven command parser that replaces single-letter dispatch with multi-character command verbs/grammar.
+### Roadmap Status
+
+- This section captures planned architecture and upcoming work.
+- The project is intentionally experimental. Items may be reordered, replaced, or removed as implementation progresses.
+
+### Command Model (Approved Direction)
+
+- The preferred grammar is `noun verb [args...]` (namespace first, action second).
+- Primary namespaces currently approved for growth: `B I T J X S M O`.
+- `TIME` is moving under `INFO`: `I T ...`.
+- `T` is being repurposed for terminal-related commands.
+- Top-level `P` and `V` are being freed for namespace pressure.
+- PIA and VIA are moving under `INFO -> IO`:
+- `I O P ...` for PIA operations.
+- `I O V ...` for VIA operations.
+- VIA timers are planned under the VIA tree (for example `I O V T ...` shape).
+
+### Parser and Input Compatibility
+
+- Keep short monitor UX, but normalize equivalent forms internally.
+- `X S` and `XS` should resolve to the same command key.
+- `M D` and `MD` should resolve to the same command key.
+- `I O V` and `IOV` should resolve to the same command key.
+- One canonical dispatch key format will be used internally to avoid duplicated handlers.
+- Alias windows will be used during migration so old commands still run while new forms are introduced.
+
+### Search Family (`S`) Plan
+
+- Add and expand the `S` search family.
+- Planned parser shape: `S C START END <text>` and `S B START END <pattern...>`.
 - `S C` (C-string text mode):
-  - Unquoted text stops at first whitespace.
-  - Quoted text supports delimiters like `"`, `'`, and `` ` ``.
-  - Delimiter escaping is by doubling the delimiter character.
+- Unquoted text stops at first whitespace.
+- Quoted text supports delimiters such as `"`, `'`, and `` ` ``.
+- Delimiter escaping uses doubled delimiter characters.
 - `S B` (binary mode):
-  - `HH` byte token (`00..FF`).
-  - `HHHH` word/address token, searched little-endian (example: `8000` => `00 80`).
-  - `HL` nibble wildcard token where each nibble is hex or `?` (`?A`, `A?`, `??`).
-  - `*` single-byte wildcard (`*` and `??` are equivalent wildcard bytes).
-- Future (not yet implemented): `S P` (Pascal length-prefixed strings), `S H` (high-bit-set ASCII strings).
-- Games backlog / future ideas: `Mastermind`, `Conway's Life`, `Tic-Tac-Toe`.
+- `HH` byte token (`00..FF`).
+- `HHHH` word/address token searched little-endian (example: `8000` => `00 80`).
+- `HL` nibble wildcard token where each nibble is hex or `?` (`?A`, `A?`, `??`).
+- `*` single-byte wildcard (`*` and `??` are equivalent wildcard bytes).
+- Later candidates: `S P` (Pascal length-prefixed strings), `S H` (high-bit-set ASCII strings).
+
+### Transfer / XMODEM Plan
+
+- At least XMODEM receive and send are required before publish.
+- Current direction is to keep transfer commands grouped under `X`.
+- `X R` for receive and `X S` for send are the preferred forms.
+- Space and fused forms should both work (`X S` == `XS`, `X R` == `XR`).
+
+### Flash / Bank Plan
+
+- `B` is reserved for Bank/FLASH access.
+- FLASH flows should include read/program/erase/verify style operations under `B` subverbs.
+- FLASH operations are considered critical sections and must integrate with vector/NMI safety rules.
+
+### Vector + Safety Direction (Required Before Publish)
+
+- Vector updates must support dynamic and atomic behavior.
+- Critical windows (vector commit and FLASH routines) should visibly warn the user.
+- During critical windows, all EDU LEDs should flash as a "do not press NMI" signal.
+- NMI handling should be guarded/deferred during critical windows rather than entering the normal debug flow.
+- A staged update plus atomic commit mechanism is the current direction for vector changes.
+
+### Open Design Item (Deferred)
+
+- `O` command purpose is intentionally deferred to a later decision.
+- Candidate use: chaining multiple operations on one line as an execution wrapper.
+- If adopted, `O` still needs explicit policy for error handling (`stop on error` vs `continue`) and guard semantics.
+
+### Additional Backlog Ideas
+
+- Possible parser fork path (future): full string-driven command grammar instead of strict single-letter roots.
+- Games backlog and demos: `Mastermind`, `Conway's Life`, `Tic-Tac-Toe`.
 
 ## Legal
 
