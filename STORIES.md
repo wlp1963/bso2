@@ -17,6 +17,16 @@
 - Keep vector targets in bank 0; vectors must not point directly into switchable banks.
 - Add an enforced build check later for `END_KDATA < $F000` (post-link map check is the reliable method with this toolchain).
 
+### Work Rhythm: Active vs Parked
+
+- Active lane (high-speed lane): one current implementation lane only. Finish, verify, document, then switch.
+- Parked lane: anything not in the active lane gets a short parked note and stays deferred until explicitly promoted.
+- Promotion rule: parked items move to active only when the active lane has a clear stop point.
+
+Quoted guidance:
+"You explore broadly, then commit to concrete constraints. That balance is rare and useful."
+"Keep one active lane and one parking lot lane; everything not in active lane gets a dated TODO note and waits."
+
 ## Author History (Draft)
 
 This project has roots in hands-on work from the late 1980s. Some dates and details are approximate and may be corrected over time.
