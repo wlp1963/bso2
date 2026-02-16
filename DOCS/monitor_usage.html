@@ -235,12 +235,29 @@ DBG_TAG_BUF   6 bytes</p>
     <li>During critical windows, all EDU LEDs should flash to signal that NMI should not be pressed.</li>
     <li>NMI path should be guarded/deferred during critical windows instead of normal debug flow.</li>
     <li>Staged-update plus atomic-commit behavior is the intended implementation pattern.</li>
+    <li>Mandate (non-changing requirement): any operation that mutates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation detail may change, requirement does not.</li>
   </ul>
 
   <h3>9.7) Deferred Item</h3>
   <ul>
     <li><code>O</code> command semantics are intentionally deferred.</li>
     <li>If adopted as an operation chain wrapper, error policy and guard policy must be defined explicitly.</li>
+  </ul>
+
+  <h3>9.8) Compression + TX Ring (Priority 0)</h3>
+  <ul>
+    <li>Priority 0 roadmap item: reduce monitor-text ROM footprint with compression.</li>
+    <li>Planned model: tokenized text plus RLE.</li>
+    <li>RLE threshold: encode runs of 3 or more consecutive bytes.</li>
+    <li>Frequent-byte run tokens are planned for <code>space</code>, <code>-</code>, <code>0</code>, <code>1</code>, and <code>*</code>.</li>
+    <li>Decompression direction is ROM compressed stream to output sink (UART stream directly or TX/RAM staging).</li>
+    <li>A dedicated TX ring buffer is planned for nonblocking output.</li>
+    <li>Decoder should be pausable/resumable when TX ring space is exhausted.</li>
+    <li>RX and TX buffers remain separate.</li>
+    <li>Default virtual-stream plan: one shared TX ring with scheduling/priority policy.</li>
+    <li>Per-stream TX rings are optional and should be introduced only if stream isolation/QoS is required.</li>
+    <li>Raw/uncompressed source strings remain in assembly source as authoring truth.</li>
+    <li>Planned build flow: marked header/trailer string regions are consumed by a GNU C packer that generates an assembler include.</li>
   </ul>
 
   <h2>10) Legal Notice</h2>

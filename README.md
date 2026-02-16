@@ -141,6 +141,20 @@ Notes:
 - One canonical dispatch key format will be used internally to avoid duplicated handlers.
 - Alias windows will be used during migration so old commands still run while new forms are introduced.
 
+### Compression + TX Output (Priority 0)
+
+- Priority 0: implement compression/decompression for monitor text to recover `KDATA` headroom.
+- Preferred first implementation is tokenized text with RLE support.
+- RLE rule: encode runs of `3+` consecutive bytes.
+- Special run tokens are planned for frequent bytes: `space`, `-`, `0`, `1`, and `*`.
+- Decompression direction is from ROM-compressed data to a sink (`UART` stream or RAM/TX buffer).
+- A dedicated `TX` ring buffer is planned for nonblocking output.
+- Decoder should be resumable when TX is full (pause/resume state machine).
+- `RX` and `TX` stay separate; do not reuse the input ring for output.
+- For virtual output streams, default plan is one shared TX ring with scheduler/priority policy; per-stream TX rings are optional only if isolation/QoS is required.
+- Raw/uncompressed source strings remain in assembly source as the authoring truth.
+- Planned build flow: use marked header/trailer regions for string blocks, run a GNU C packer against that source region, and generate an include consumed by the assembler.
+
 ### Search Family (`S`) Plan
 
 - Add and expand the `S` search family.
@@ -181,6 +195,7 @@ Notes:
 - During critical windows, all EDU LEDs should flash as a "do not press NMI" signal.
 - NMI handling should be guarded/deferred during critical windows rather than entering the normal debug flow.
 - A staged update plus atomic commit mechanism is the current direction for vector changes.
+- Mandate (non-changing requirement): any operation that updates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation details may change, but this requirement does not.
 
 ### Open Design Item (Deferred)
 
