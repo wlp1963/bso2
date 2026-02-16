@@ -83,7 +83,7 @@ Requirements:
 ## Monitor Commands
 
 - `?` short help
-- `H` full help
+- `H [A|P|M|S]` help index/all/protection/memory-steering sections
 - `Z` clear RAM (confirm `Y/N`)
 - `W` warm start to monitor
 - `D [START [END]]` dump memory (`END` inclusive)
@@ -104,9 +104,10 @@ Requirements:
 
 Notes:
 - In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
+- On boot selection flow, terminal width prompt accepts single-key `4/8/1` for `40/80/132`; `W/M` restore prior width before prompt, while `C` starts from default `80`.
 - `A` supports relative-branch target entry via absolute hex address (range checked).
 - `A` supports explicit accumulator syntax such as `INC A`.
-- Fixed-address contract: PAGE0 is anchored at `$0040`; pinned bytes include `GAME_ASK_PENDING=$0088`, `RST_HOOK=$0089`, `NMI_HOOK=$008C`, `IRQ_HOOK=$008F`, `BRK_FLAG=$0092`; hardware vectors remain `NMI=$FFFA`, `RST=$FFFC`, `IRQ/BRK=$FFFE`.
+- Fixed-address contract: PAGE0 is anchored at `$0040`; pinned bytes include `GAME_ASK_PENDING=$0088`, `RST_HOOK=$0089`, `NMI_HOOK=$008C`, `IRQ_HOOK=$008F`, `BRK_FLAG=$0092`, `TERM_COLS=$0093`; hardware vectors remain `NMI=$FFFA`, `RST=$FFFC`, `IRQ/BRK=$FFFE`.
 - See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
 
 ## Development

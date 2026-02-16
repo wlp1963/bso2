@@ -77,10 +77,14 @@ ZP_RST_HOOK_ADDR        EQU         $89
 ZP_NMI_HOOK_ADDR        EQU         $8C
 ZP_IRQ_HOOK_ADDR        EQU         $8F
 ZP_BRK_FLAG_ADDR        EQU         $92
+ZP_TERM_COLS_ADDR       EQU         $93
 ZP_GUARD_END_EXCL       EQU         $00FF ; KEEP USAGE <= $00FE
 HW_VEC_NMI_ADDR         EQU         $FFFA
 HW_VEC_RST_ADDR         EQU         $FFFC
 HW_VEC_IRQ_ADDR         EQU         $FFFE
+TERM_COLS_40            EQU         $28
+TERM_COLS_80            EQU         $50
+TERM_COLS_132           EQU         $84
 
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
@@ -157,6 +161,8 @@ NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
 IRQ_HOOK:               DS          3   ; IRQ VECTOR JUMP
                         DS          ZP_BRK_FLAG_ADDR-* ; PIN DEBUG CONTEXT FLAG
 BRK_FLAG                DS          1
+                        DS          ZP_TERM_COLS_ADDR-* ; PIN TERMINAL WIDTH BYTE
+TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
 
 ; PAGE0 GUARD: RESERVE UP TO $00FE; NEGATIVE DS FAILS IF WE EVER CROSS IT
                         DS          ZP_GUARD_END_EXCL-*
@@ -235,6 +241,10 @@ SYS_RST:
                         STZ         CMD_ESC_STATE
                         STZ         CMD_LAST_LEN
                         STZ         STEP_ACTIVE
+                        LDA         TERM_COLS ; SAVE PRIOR WIDTH ACROSS RESET
+                        STA         PSR_TEMP
+                        LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
+                        STA         TERM_COLS
                         LDA         #$01 ; ASK ONCE AFTER RESET
                         STA         GAME_ASK_PENDING
                         LDA         #SYSF_RESET_FLAG_M
@@ -244,15 +254,19 @@ SYS_RST:
         ; --- CHECK RESET COOKIE ("WDC",0) ---
                         LDA         RESET_COOKIE
                         CMP         #'W'
-                        BNE         POWER_ON_CLR
+                        BNE         ?TO_POWER_ON_CLR
                         LDA         RESET_COOKIE+1
                         CMP         #'D'
-                        BNE         POWER_ON_CLR
+                        BNE         ?TO_POWER_ON_CLR
                         LDA         RESET_COOKIE+2
                         CMP         #'C'
-                        BNE         POWER_ON_CLR
+                        BNE         ?TO_POWER_ON_CLR
                         LDA         RESET_COOKIE+3
-                        BNE         POWER_ON_CLR
+                        BNE         ?TO_POWER_ON_CLR
+                        BRA         ?COOKIE_OK
+?TO_POWER_ON_CLR:
+                        JMP         POWER_ON_CLR
+?COOKIE_OK:
 
         ; --- MAGIC VALID: ASK USER ---
                         LDA         #SYSF_RESET_FLAG_M
@@ -266,29 +280,42 @@ SYS_RST:
 
                         JSR         KEY_IS_W ; W/w = WARM
                         BNE         ?NOT_W_KEY
-                        JMP         WARM_NO_VECT
+                        JMP         ?BOOT_GO_WARM_NO_VECT
 
 ?NOT_W_KEY:
                         JSR         KEY_IS_M ; M/m = MONITOR
                         BNE         ?ASK_BOOT ; Invalid key? Ask again
-                        JMP         MONITOR
+                        JMP         ?BOOT_GO_MONITOR
 
 ?ASK_CLR_CONFIRM:
                         PRT_CSTRING MSG_CLR_CONFIRM
 ?WAIT_CLR_CONFIRM:
                         JSR         READ_BYTE
                         JSR         KEY_IS_Y
-                        BEQ         MEMCLR
+                        BEQ         ?BOOT_GO_MEMCLR
                         JSR         KEY_IS_N
                         BEQ         ?CLR_ABORTED
                         BRA         ?WAIT_CLR_CONFIRM
 
 ?CLR_ABORTED:
                         PRT_CSTRING MSG_RAM_NOT_CLEARED
+                        JMP         ?BOOT_GO_WARM_NO_VECT
+
+?BOOT_GO_MEMCLR:
+                        JSR         PROMPT_TERM_WIDTH
+                        JMP         MEMCLR
+?BOOT_GO_WARM_NO_VECT:
+                        JSR         TERM_RESTORE_SAVED
+                        JSR         PROMPT_TERM_WIDTH
                         JMP         WARM_NO_VECT
+?BOOT_GO_MONITOR:
+                        JSR         TERM_RESTORE_SAVED
+                        JSR         PROMPT_TERM_WIDTH
+                        JMP         MONITOR
 
 POWER_ON_CLR:
                         PRT_CSTRING MSG_POWER_ON
+                        JSR         PROMPT_TERM_WIDTH
 
 MEMCLR:                 PRT_CSTRING MSG_RAM_CLEARED
                         JSR         MEMCLR_CORE
@@ -453,6 +480,77 @@ KEY_IS_Y:
 KEY_IS_N:
                         JSR         UTIL_TO_UPPER
                         CMP         #'N'
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PROMPT_TERM_WIDTH
+; DESCRIPTION: PROMPTS FOR TERMINAL WIDTH USING SINGLE-KEY SELECTION
+; INPUT: NONE
+; OUTPUT: TERM_COLS = 40/80/132 (DEFAULT REMAINS 80 ON OTHER INPUT)
+; ----------------------------------------------------------------------------
+PROMPT_TERM_WIDTH:
+                        PRT_CSTRING MSG_TERM_WIDTH_PROMPT
+                        JSR         READ_BYTE
+                        CMP         #'4'
+                        BEQ         ?PTW_SET_40
+                        CMP         #'8'
+                        BEQ         ?PTW_SET_80
+                        CMP         #'1'
+                        BEQ         ?PTW_SET_132
+                        JSR         TERM_FLUSH_LINE
+                        RTS
+?PTW_SET_40:
+                        LDA         #TERM_COLS_40
+                        STA         TERM_COLS
+                        JSR         TERM_FLUSH_LINE
+                        RTS
+?PTW_SET_80:
+                        LDA         #TERM_COLS_80
+                        STA         TERM_COLS
+                        JSR         TERM_FLUSH_LINE
+                        RTS
+?PTW_SET_132:
+                        LDA         #TERM_COLS_132
+                        STA         TERM_COLS
+                        JSR         TERM_FLUSH_LINE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_FLUSH_LINE
+; DESCRIPTION: CONSUMES PENDING SERIAL BYTES THROUGH CR/LF (NON-BLOCKING)
+; INPUT: NONE
+; OUTPUT: PENDING TAIL OF WIDTH PROMPT INPUT IS DISCARDED
+; ----------------------------------------------------------------------------
+TERM_FLUSH_LINE:
+?TFL_LOOP:
+                        JSR         CHECK_BYTE ; C=1 IF EMPTY
+                        BCS         ?TFL_DONE
+                        JSR         READ_BYTE
+                        CMP         #$0D
+                        BEQ         ?TFL_DONE
+                        CMP         #$0A
+                        BEQ         ?TFL_DONE
+                        BRA         ?TFL_LOOP
+?TFL_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_RESTORE_SAVED
+; DESCRIPTION: RESTORES SAVED TERM WIDTH ONLY IF IT MATCHES 40/80/132
+; INPUT: PSR_TEMP = SAVED WIDTH CANDIDATE
+; OUTPUT: TERM_COLS UPDATED WHEN CANDIDATE IS VALID
+; ----------------------------------------------------------------------------
+TERM_RESTORE_SAVED:
+                        LDA         PSR_TEMP
+                        CMP         #TERM_COLS_40
+                        BEQ         ?TRS_SET
+                        CMP         #TERM_COLS_80
+                        BEQ         ?TRS_SET
+                        CMP         #TERM_COLS_132
+                        BNE         ?TRS_DONE
+?TRS_SET:
+                        STA         TERM_COLS
+?TRS_DONE:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -990,7 +1088,53 @@ CMD_DO_HELP_SHORT:
                         RTS
 
 CMD_DO_HELP_FULL:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?H_INDEX
+                        CMP         #'A'
+                        BEQ         ?H_ALL
+                        CMP         #'P'
+                        BEQ         ?H_PROT
+                        CMP         #'M'
+                        BEQ         ?H_MEM
+                        CMP         #'S'
+                        BEQ         ?H_STEER
+                        BRA         ?H_USAGE
+?H_ALL:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
                         JSR         CMD_PRINT_HELP_FULL
+                        RTS
+?H_PROT:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
+                        JSR         CMD_PRINT_HELP_PROTECTION
+                        RTS
+?H_MEM:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
+                        JSR         CMD_PRINT_HELP_MEMORY
+                        RTS
+?H_STEER:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
+                        JSR         CMD_PRINT_HELP_STEERING
+                        RTS
+?H_INDEX:
+                        PRT_CSTRING MSG_HELP_SHORT
+                        PRT_CSTRING MSG_HELP_SECTIONS
+                        RTS
+?H_USAGE:
+                        PRT_CSTRING MSG_H_USAGE
                         RTS
 
 CMD_DO_QUIT_MONITOR:
@@ -2037,6 +2181,57 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_36
                         PRT_CSTRING MSG_HELP_FULL_37
                         PRT_CSTRING MSG_HELP_FULL_38
+                        PRT_CSTRING MSG_HELP_FULL_39
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_PRINT_HELP_PROTECTION
+; DESCRIPTION: PRINTS PROTECTION + FIXED-ADDRESS HELP SUBSET
+; ----------------------------------------------------------------------------
+CMD_PRINT_HELP_PROTECTION:
+                        PRT_CSTRING MSG_HELP_PROT_HDR
+                        PRT_CSTRING MSG_HELP_FULL_23
+                        PRT_CSTRING MSG_HELP_FULL_24
+                        PRT_CSTRING MSG_HELP_FULL_25
+                        PRT_CSTRING MSG_HELP_FULL_36
+                        PRT_CSTRING MSG_HELP_FULL_37
+                        PRT_CSTRING MSG_HELP_FULL_38
+                        PRT_CSTRING MSG_HELP_FULL_39
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_PRINT_HELP_MEMORY
+; DESCRIPTION: PRINTS MEMORY/LOAD TOOL HELP SUBSET
+; ----------------------------------------------------------------------------
+CMD_PRINT_HELP_MEMORY:
+                        PRT_CSTRING MSG_HELP_MEM_HDR
+                        PRT_CSTRING MSG_HELP_FULL_12
+                        PRT_CSTRING MSG_HELP_FULL_13
+                        PRT_CSTRING MSG_HELP_FULL_14
+                        PRT_CSTRING MSG_HELP_FULL_15
+                        PRT_CSTRING MSG_HELP_FULL_16
+                        PRT_CSTRING MSG_HELP_FULL_17
+                        PRT_CSTRING MSG_HELP_FULL_18
+                        PRT_CSTRING MSG_HELP_FULL_19
+                        PRT_CSTRING MSG_HELP_FULL_20
+                        PRT_CSTRING MSG_HELP_FULL_26
+                        PRT_CSTRING MSG_HELP_FULL_27
+                        PRT_CSTRING MSG_HELP_FULL_21
+                        PRT_CSTRING MSG_HELP_FULL_22
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_PRINT_HELP_STEERING
+; DESCRIPTION: PRINTS STEERING/TRANSITION HELP SUBSET
+; ----------------------------------------------------------------------------
+CMD_PRINT_HELP_STEERING:
+                        PRT_CSTRING MSG_HELP_STEER_HDR
+                        PRT_CSTRING MSG_HELP_FULL_30
+                        PRT_CSTRING MSG_HELP_FULL_31
+                        PRT_CSTRING MSG_HELP_FULL_32
+                        PRT_CSTRING MSG_HELP_FULL_33
+                        PRT_CSTRING MSG_HELP_FULL_34
+                        PRT_CSTRING MSG_HELP_FULL_35
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -5626,18 +5821,29 @@ MSG_CLR_CONFIRM:        DB          $0D, $0A, "CLEAR MEMORY? (Y/N)", 0
 MSG_POWER_ON:           DB          $0D, $0A, "POWER ON", 0
 MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
+MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
+                        DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
                         DB          "D F L M P U V", 0
                         DB          $0D, $0A
-                        DB          "PROT: ! FOR F/M/C/A/N/L", 0
+                        DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S SECTIONS"
+                        DB          0
+MSG_HELP_SECTIONS:      DB          $0D, $0A
+                        DB          "H A=ALL  H P=PROTECTION  H M=MEMORY  H S=ST"
+                        DB          "EERING", 0
+MSG_H_USAGE:            DB          $0D, $0A, "USAGE: H [A|P|M|S]", 0
+MSG_HELP_PROT_HDR:      DB          $0D, $0A, "HELP: PROTECTION", 0
+MSG_HELP_MEM_HDR:       DB          $0D, $0A, "HELP: MEMORY/TOOLS", 0
+MSG_HELP_STEER_HDR:     DB          $0D, $0A, "HELP: STEERING", 0
 MSG_HELP_FULL_0:        DB          $0D, $0A, "MONITOR HELP", 0
 MSG_HELP_FULL_1:        DB          $0D, $0A, "  [HELP]"
                         DB          0
 MSG_HELP_FULL_2:        DB          $0D, $0A, "  ?                SHORT HELP"
                         DB          0
 MSG_HELP_FULL_3:        DB          $0D, $0A
-                        DB          "  H                FULL HELP", 0
+                        DB          "  H [A|P|M|S]      INDEX / ALL / PROT / MEM"
+                        DB          " / STEER", 0
 MSG_HELP_FULL_4:        DB          $0D, $0A
                         DB          "  [CONTROL]"
                         DB          0
@@ -5740,6 +5946,9 @@ MSG_HELP_FULL_37:       DB          $0D, $0A
                         DB          0
 MSG_HELP_FULL_38:       DB          $0D, $0A
                         DB          "  HW VECTORS @     $FFFA/$FFFC/$FFFE", 0
+MSG_HELP_FULL_39:       DB          $0D, $0A
+                        DB          "  TERM COL @ $0093 !M 93 28/50/84 (40/80/13"
+                        DB          "2)", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0

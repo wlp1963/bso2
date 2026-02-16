@@ -43,6 +43,8 @@
   <p class="mono">C = clear RAM (confirm Y/N)
 W = warm start
 M = enter monitor</p>
+  <p>A terminal-width prompt follows boot selection: <code>TERM WIDTH 4=40 8=80 1=132 [8]?</code>.</p>
+  <p>Width persistence policy: <code>W/M</code> restore prior width before prompting; <code>C</code> starts from default 80 before prompting.</p>
   <p>After clear/startup, the sign-on banner (<code>BSO2_INIT</code>) is printed:</p>
   <p class="mono">     **** basic system operations/2 ****
      ****       b s o / 2  v0 . 9   ****
@@ -53,7 +55,7 @@ M = enter monitor</p>
   <table>
     <tr><th style="width:15%">Cmd</th><th style="width:30%">Syntax</th><th style="width:35%">Behavior / Output</th><th style="width:20%">Flags / Notes</th></tr>
     <tr><td><code>?</code></td><td><code>?</code></td><td>Short help line.</td><td>Quick command list only.</td></tr>
-    <tr><td><code>H</code></td><td><code>H</code></td><td>Full multi-line help.</td><td>Includes interactive caveats.</td></tr>
+    <tr><td><code>H</code></td><td><code>H [A|P|M|S]</code></td><td>Help index or scoped help sections.</td><td><code>H</code>=index, <code>H A</code>=all, <code>H P</code>=protection, <code>H M</code>=memory/tools, <code>H S</code>=steering.</td></tr>
     <tr><td><code>Z</code></td><td><code>Z</code></td><td>Clear RAM after Y/N confirmation.</td><td>Zeroes <code>$0200-$7EFF</code>. Does not zero <code>$0000-$01FF</code> (ZP/stack) or <code>$7F00-$7FFF</code> (I/O area).</td></tr>
     <tr><td><code>W</code></td><td><code>W</code></td><td>Warm start back into monitor.</td><td>No args.</td></tr>
     <tr><td><code>D</code></td><td><code>D [START [END]]</code></td><td>Hex+ASCII dump. <code>END</code> is inclusive.</td><td><code>D</code> alone repeats last span from next address. Hex/ASCII fields show an 8+8 split.</td></tr>
@@ -82,6 +84,7 @@ M = enter monitor</p>
     <li><code>F/M/C/A/N</code> block access to <code>$0000-$03FF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
     <li>Post-command game ask hook is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
     <li>Hook flag is fixed/reserved at <code>$0088</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 88 01</code> sets pending; <code>!M 88 00</code> clears pending.</li>
+    <li>Terminal width byte is fixed/reserved at <code>$0093</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
   </ul>
 
   <h2>4) Verify / Error Outputs</h2>
@@ -149,18 +152,18 @@ M = enter monitor</p>
   <table>
     <tr><th>Section</th><th>ORG</th><th>Size (hex)</th><th>Size (dec)</th></tr>
     <tr><td>PAGE0</td><td><code>$0040</code></td><td><code>$BF</code></td><td>191</td></tr>
-    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$2227</code></td><td>8743</td></tr>
-    <tr><td>KDATA</td><td><code>$A227</code></td><td><code>$1066</code></td><td>4198</td></tr>
+    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$24A9</code></td><td>9385</td></tr>
+    <tr><td>KDATA</td><td><code>$A4A9</code></td><td><code>$1165</code></td><td>4453</td></tr>
     <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$7A</code></td><td>122</td></tr>
-    <tr><td>Total</td><td>-</td><td><code>$33C6</code></td><td>13254</td></tr>
+    <tr><td>Total</td><td>-</td><td><code>$3747</code></td><td>14151</td></tr>
   </table>
 
   <h3>RAM Layout Highlights</h3>
   <ul>
     <li>PAGE0 starts at <code>$0040</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
     <li>Guard policy reserves PAGE0 through <code>$00FE</code> to enforce a hard ceiling for this monitor build.</li>
-    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A227</code>).</li>
-    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0088</code>, <code>RST_HOOK=$0089</code>, <code>NMI_HOOK=$008C</code>, <code>IRQ_HOOK=$008F</code>, <code>BRK_FLAG=$0092</code>.</li>
+    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A4A9</code>).</li>
+    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0088</code>, <code>RST_HOOK=$0089</code>, <code>NMI_HOOK=$008C</code>, <code>IRQ_HOOK=$008F</code>, <code>BRK_FLAG=$0092</code>, <code>TERM_COLS=$0093</code>.</li>
     <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
     <li>UDATA starts at <code>$0200</code>:</li>
   </ul>
