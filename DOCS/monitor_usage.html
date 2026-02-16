@@ -216,6 +216,8 @@ DBG_TAG_BUF   6 bytes</p>
     <li><code>S C</code> mode: unquoted text stops at first whitespace.</li>
     <li><code>S C</code> mode: quoted delimiters can include <code>"</code>, <code>'</code>, and <code>`</code>.</li>
     <li><code>S C</code> mode: delimiter escape by doubling delimiter character.</li>
+    <li><code>S C</code> mode wildcards: <code>?</code> matches exactly one character, <code>*</code> matches zero or more characters.</li>
+    <li><code>S C</code> mode literals: <code>??</code> matches literal <code>?</code>, and <code>**</code> matches literal <code>*</code>.</li>
     <li><code>S B</code> mode tokens: <code>HH</code> byte, <code>HHHH</code> little-endian word, nibble wildcard (<code>?A</code>/<code>A?</code>/<code>??</code>), and <code>*</code> byte wildcard.</li>
     <li>Candidate extensions: Pascal strings and high-bit-set text search modes.</li>
   </ul>

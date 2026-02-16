@@ -148,6 +148,11 @@ Notes:
 - Unquoted text stops at first whitespace.
 - Quoted text supports delimiters such as `"`, `'`, and `` ` ``.
 - Delimiter escaping uses doubled delimiter characters.
+- Wildcards are enabled in `S C` text patterns.
+- `?` matches exactly one character.
+- `*` matches zero or more characters.
+- `??` matches a literal `?` character.
+- `**` matches a literal `*` character.
 - `S B` (binary mode):
 - `HH` byte token (`00..FF`).
 - `HHHH` word/address token searched little-endian (example: `8000` => `00 80`).
