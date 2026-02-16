@@ -1,5 +1,9 @@
 # Stories
 
+## Milestones
+
+- `2026-02-16T00:45:50-06:00` - Historical RLE design-note rationale documented across `README.md`, `STORIES.md`, and monitor docs.
+
 ## Author History (Draft)
 
 This project has roots in hands-on work from the late 1980s. Some dates and details are approximate and may be corrected over time.

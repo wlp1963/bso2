@@ -28,6 +28,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Suggestions are welcome.
 - The only constant is that nothing is safe from change.
 - "Perfect is the enemy of good." - Voltaire
+- Milestone: historical RLE design-note rationale documented at `2026-02-16T00:45:50-06:00`.
 
 ## Repository Layout
 
