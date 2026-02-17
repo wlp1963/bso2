@@ -2311,8 +2311,6 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_16
                         PRT_CSTRING MSG_HELP_FULL_17
                         PRT_CSTRING MSG_HELP_FULL_18
-                        PRT_CSTRING MSG_HELP_FULL_19
-                        PRT_CSTRING MSG_HELP_FULL_20
                         PRT_CSTRING MSG_HELP_FULL_26
                         PRT_CSTRING MSG_HELP_FULL_27
                         PRT_CSTRING MSG_HELP_FULL_29
@@ -2342,7 +2340,6 @@ CMD_PRINT_HELP_PROTECTION:
                         PRT_CSTRING MSG_HELP_FULL_23
                         PRT_CSTRING MSG_HELP_FULL_24
                         PRT_CSTRING MSG_HELP_FULL_25
-                        PRT_CSTRING MSG_HELP_FULL_36
                         PRT_CSTRING MSG_HELP_FULL_37
                         PRT_CSTRING MSG_HELP_FULL_38
                         PRT_CSTRING MSG_HELP_FULL_39
@@ -2361,8 +2358,6 @@ CMD_PRINT_HELP_MEMORY:
                         PRT_CSTRING MSG_HELP_FULL_16
                         PRT_CSTRING MSG_HELP_FULL_17
                         PRT_CSTRING MSG_HELP_FULL_18
-                        PRT_CSTRING MSG_HELP_FULL_19
-                        PRT_CSTRING MSG_HELP_FULL_20
                         PRT_CSTRING MSG_HELP_FULL_26
                         PRT_CSTRING MSG_HELP_FULL_27
                         PRT_CSTRING MSG_HELP_FULL_21
@@ -6067,7 +6062,7 @@ MSG_HELP_FULL_2:        DB          $0D, $0A, "  ?                SHORT HELP"
 MSG_HELP_FULL_3:        DB          $0D, $0A
                         DB          "  H [A|P|M|S|-|+]  INDEX / ALL / PROT / MEM"
                         DB          " / STEER  (ALSO -H / +H)", 0
-MSG_HELP_FULL_4:        DB          $0D, $0A
+MSG_HELP_FULL_4:        DB          $0D, $0A, $0D, $0A
                         DB          "  [CONTROL]"
                         DB          0
 MSG_HELP_FULL_5:        DB          $0D, $0A
@@ -6079,7 +6074,7 @@ MSG_HELP_FULL_6:        DB          $0D, $0A
 MSG_HELP_FULL_7:        DB          $0D, $0A
                         DB          "  Z                CLEAR RAM (CONFIRM Y/"
                         DB          "N)", 0
-MSG_HELP_FULL_8:        DB          $0D, $0A
+MSG_HELP_FULL_8:        DB          $0D, $0A, $0D, $0A
                         DB          "  [EXECUTION/DEBUG]"
                         DB          0
 MSG_HELP_FULL_9:        DB          $0D, $0A
@@ -6094,8 +6089,9 @@ MSG_HELP_FULL_11:       DB          $0D, $0A
 MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
-MSG_HELP_FULL_12:       DB          $0D, $0A
-                        DB          "  [MEMORY]"
+MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
+                        DB          "  [MEMORY]          ***E IS INCLUSIVE***  *"
+                        DB          "**ENTER HEX PAIR FOR BYTE***"
                         DB          0
 MSG_HELP_FULL_13:       DB          $0D, $0A
                         DB          "  A S [INSN]       TINY ASM; '.' EXITS"
@@ -6104,15 +6100,15 @@ MSG_HELP_FULL_14:       DB          $0D, $0A
                         DB          "  C S E DST        COPY (OVERLAP-SAFE)"
                         DB          0
 MSG_HELP_FULL_15:       DB          $0D, $0A
-                        DB          "  D [S [E]]        DUMP (E IS INCLUSIVE)"
+                        DB          "  D [S [E]]        DUMP"
                         DB          0
 MSG_HELP_FULL_16:       DB          $0D, $0A
-                        DB          "  F S E B0..B15    FILL (NO INTERACTIVE "
-                        DB          "MODE)", 0
+                        DB          "  F S E B0..B15    FILL (NON-INTERACTIVE)"
+                        DB          0
 MSG_HELP_FULL_17:       DB          $0D, $0A
                         DB          "  M [S [B0..B15]]  MODIFY / DEPOSIT", 0
 MSG_HELP_FULL_18:       DB          $0D, $0A
-                        DB          "    M INTERACTIVE: CR/LF=NEXT, '.'=END"
+                        DB          "    INTERACTIVE:   CR/LF=NEXT, '.'=END"
                         DB          0
 MSG_HELP_FULL_19:       DB          $0D, $0A
                         DB          "    ENTER HEX PAIRS (00..FF) TO STORE BY"
@@ -6135,7 +6131,7 @@ MSG_HELP_FULL_21:       DB          $0D, $0A
 MSG_HELP_FULL_22:       DB          $0D, $0A
                         DB          "  V                SHOW VECTOR CHAINS (DEP"
                         DB          "RECATING)", 0
-MSG_HELP_FULL_23:       DB          $0D, $0A
+MSG_HELP_FULL_23:       DB          $0D, $0A, $0D, $0A
                         DB          "  [PROTECTION]"
                         DB          0
 MSG_HELP_FULL_24:       DB          $0D, $0A
@@ -6144,7 +6140,7 @@ MSG_HELP_FULL_24:       DB          $0D, $0A
 MSG_HELP_FULL_25:       DB          $0D, $0A
                         DB          "  !<CMD> ...       FORCE-ENABLE LOW-RAM A"
                         DB          "CCESS", 0
-MSG_HELP_FULL_30:       DB          $0D, $0A
+MSG_HELP_FULL_30:       DB          $0D, $0A, $0D, $0A
                         DB          "  [STEERING] (PLANNED/PROVISIONAL)"
                         DB          0
 MSG_HELP_FULL_31:       DB          $0D, $0A
@@ -6159,18 +6155,20 @@ MSG_HELP_FULL_33:       DB          $0D, $0A
 MSG_HELP_FULL_34:       DB          $0D, $0A
                         DB          "  PROVISO          CHANGE IS CONSTANT", 0
 MSG_HELP_FULL_35:       DB          $0D, $0A
-                        DB          "  GAME ASK         SHOWS ONCE AFTER RESET/NMI"
-                        DB          0
+                        DB          "  TERM NOTE        MINITERM: UP ARROW HISTO"
+                        DB          "RY NOT SUPPORTED", 0
 MSG_HELP_FULL_36:       DB          $0D, $0A
-                        DB          "  FLAG @ $0088     !M 88 01=SET  !M 88 00=CL"
-                        DB          "EAR", 0
-MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  HOOKS @          $0089/$008C/$008F FIXED"
+                        DB          "  HOST NOTE        NO PYTHON REQUIRED", 0
+MSG_HELP_FULL_37:       DB          $0D, $0A, $0D, $0A
+                        DB          "  HW VECTORS @     N:FFFA R:FFFC I:FFFE"
                         DB          0
 MSG_HELP_FULL_38:       DB          $0D, $0A
-                        DB          "  HW VECTORS @     $FFFA/$FFFC/$FFFE", 0
+                        DB          "  ZP VECTORS @     N:0089 R:008C I:008F"
+                        DB          0
 MSG_HELP_FULL_39:       DB          $0D, $0A
-                        DB          "  TERM COL @ $0093 !M 93 28/50/84 (40/80/13"
+                        DB          "  GAME PRMPT @ $88 !M 88 01=SET  !M 88 00=CL"
+                        DB          "EAR", $0D, $0A
+                        DB          "  TERM COL   @ $93 !M 93 28/50/84 (40/80/13"
                         DB          "2)", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0

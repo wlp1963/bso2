@@ -4,8 +4,6 @@ Source: `DOCS/bso2 demo.log`
 
 Homage: this demo honors your Ohio Scientific `C1P`, later expanded into a `C2P` with disk and `bso2` startup.
 
-Clarification: older help text in this captured log says `POST ASK`; this means the game prompt appears once after Reset/NMI. Flag `$0088` controls pending state (`!M 88 01` set, `!M 88 00` clear).
-
 ```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=
 
@@ -42,15 +40,13 @@ MONITOR HELP
   R [A/X/Y=HH]     RESUME LAST DEBUG CONTEXT
   X S              EXECUTE; NMI BREAKS TO MONITOR
   G                GUESS NUMBER (1-10, 3 TRIES)
-  [MEMORY]
+  [MEMORY]          ***E IS INCLUSIVE***  ***ENTER HEX PAIR FOR BYTE***
   A S [INSN]       TINY ASM; '.' EXITS
   C S E DST        COPY (OVERLAP-SAFE)
-  D [S [E]]        DUMP (E IS INCLUSIVE)
-  F S E B0..B15    FILL (NO INTERACTIVE MODE)
+  D [S [E]]        DUMP
+  F S E B0..B15    FILL (NON-INTERACTIVE)
   M [S [B0..B15]]  MODIFY / DEPOSIT
-    M INTERACTIVE: CR/LF=NEXT, '.'=END
-    ENTER HEX PAIRS (00..FF) TO STORE BYTES
-    NOTE: CRLF PAIR COUNTS AS ONE NEXT
+    INTERACTIVE:   CR/LF=NEXT, '.'=END
   L S              LOAD MOTOROLA S-RECORDS
   L B A L          LOAD RAW BYTES TO ADDR/LEN (NO CRC)
   P                RESERVED / DEPRECATED (USE I O P)
@@ -64,11 +60,13 @@ MONITOR HELP
   WILL CHANGE      X->J EXEC, TIME->I T, T->TERMINAL
   DEPRECATED       TOP-LEVEL P/V; USE I O P / I O V
   PROVISO          CHANGE IS CONSTANT
-  POST ASK         ONE-SHOT AFTER RESET/NMI
-  FLAG @ $0088     FIXED: !M 88 01=SET  !M 88 00=CLEAR
-  HOOKS @          $0089/$008C/$008F FIXED
-  HW VECTORS @     $FFFA/$FFFC/$FFFE
-  TERM COL @ $0093 !M 93 28/50/84 (40/80/132)
+  TERM NOTE        MINITERM: UP ARROW HISTORY NOT SUPPORTED
+  HOST NOTE        NO PYTHON REQUIRED
+
+  HW VECTORS @     N:FFFA R:FFFC I:FFFE
+  ZP VECTORS @     N:0089 R:008C I:008F
+  GAME PRMPT @ $88 !M 88 01=SET  !M 88 00=CLEAR
+  TERM COL   @ $93 !M 93 28/50/84 (40/80/132)
 -D 88
 0088: 00 4C 0D 80 4C D7 A0 4C | 38 A1 00 50 ED FD AB BD  |.L..L..L|8..P....|
 0098: 01 80 90 1C E8 5D 7D FB | 51 12 0C 80 B2 3F 75 FB  |.....]}.|Q....?u.|
