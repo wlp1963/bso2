@@ -2,6 +2,8 @@
 
 Source: `DOCS/bso2 demo.log`
 
+Homage: this demo honors your Ohio Scientific `C1P`, later expanded into a `C2P` with disk and `bso2` startup.
+
 ```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=
 
