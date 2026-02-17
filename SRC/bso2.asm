@@ -6159,11 +6159,11 @@ MSG_HELP_FULL_33:       DB          $0D, $0A
 MSG_HELP_FULL_34:       DB          $0D, $0A
                         DB          "  PROVISO          CHANGE IS CONSTANT", 0
 MSG_HELP_FULL_35:       DB          $0D, $0A
-                        DB          "  POST ASK         ONE-SHOT AFTER RESET/NMI"
+                        DB          "  GAME ASK         SHOWS ONCE AFTER RESET/NMI"
                         DB          0
 MSG_HELP_FULL_36:       DB          $0D, $0A
-                        DB          "  FLAG @ $0088     FIXED: !M 88 01=SET  !M 8"
-                        DB          "8 00=CLEAR", 0
+                        DB          "  FLAG @ $0088     !M 88 01=SET  !M 88 00=CL"
+                        DB          "EAR", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
                         DB          "  HOOKS @          $0089/$008C/$008F FIXED"
                         DB          0

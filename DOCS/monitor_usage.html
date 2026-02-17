@@ -84,7 +84,7 @@ M = enter monitor</p>
     <li>Special repeat behavior: if the previous command was a <code>D ...</code> or <code>U ...</code> form, up-arrow replays bare <code>D</code>/<code>U</code>; <code>D</code> continues by saved span, <code>U</code> by saved next-instruction address.</li>
     <li><code>F/M/C/A/N</code> block access to <code>$0000-$03FF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
     <li>Direct vector-hook edits with <code>!M</code> are non-atomic and debug-only. Writing live bytes at <code>$0089-$0091</code> (especially <code>$008C-$008E</code>) can produce mixed-byte jumps, wrong dispatch, hangs/crashes, or temporary vector-name mismatch while patching.</li>
-    <li>Post-command game ask hook is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
+    <li>Game ask hook (<code>GAME ASK</code>, older text: <code>POST ASK</code>) is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
     <li>Hook flag is fixed/reserved at <code>$0088</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 88 01</code> sets pending; <code>!M 88 00</code> clears pending.</li>
     <li>Terminal width byte is fixed/reserved at <code>$0093</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
   </ul>
