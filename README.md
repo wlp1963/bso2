@@ -18,7 +18,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Ring-buffer command parser
 - Commands: `Z C W M D U A X G R N F L Q V H ?`
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
-- BRK debug context output with previous and next instruction lines
+- BRK debug context output with current/next instruction line and state line
 
 ## Project Notes
 
@@ -87,7 +87,7 @@ Requirements:
 - `Z` clear RAM (confirm `Y/N`)
 - `W` warm start to monitor
 - `D [START [END]]` dump memory (`END` inclusive)
-- `U START END` disassemble a 65C02 range (`END` inclusive)
+- `U [START END]` disassemble a 65C02 range (`END` inclusive; bare `U` repeats from saved next-instruction address)
 - `A START [MNEMONIC OPERANDS]` tiny interactive 65C02 assembler (`.` exits)
 - `X START` execute at address
 - `G` play a simple 3-try number guess game (`1..10`)
@@ -104,11 +104,12 @@ Requirements:
 
 Notes:
 - In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
+- Special case: if the previous command was a `D ...` or `U ...` form, up-arrow replays bare `D`/`U`; `D` continues by saved span, `U` continues by saved next-instruction address.
 - On boot selection flow, terminal width prompt accepts single-key `4/8/1` for `40/80/132`; `W/M` restore prior width before prompt, while `C` starts from default `80`.
 - `A` supports relative-branch target entry via absolute hex address (range checked).
 - `A` supports explicit accumulator syntax such as `INC A`.
 - Fixed-address contract: PAGE0 is anchored at `$0040`; pinned bytes include `GAME_ASK_PENDING=$0088`, `RST_HOOK=$0089`, `NMI_HOOK=$008C`, `IRQ_HOOK=$008F`, `BRK_FLAG=$0092`, `TERM_COLS=$0093`; hardware vectors remain `NMI=$FFFA`, `RST=$FFFC`, `IRQ/BRK=$FFFE`.
-- `V` vector-chain format is compact (`RST: FFFC>F818>8004>9F31>[0089]>800D`); bracketed links use `[addr16]` and indicate a patchable 16-bit RAM trampoline address.
+- `V` vector-chain format uses spaced arrows (`RST: FFFC > F818 > 8004 > 9F31 > [0089] > 800D`); bracketed links use `[addr16]` and indicate a patchable 16-bit RAM trampoline address.
 - Vector naming contract (draft): each patchable target must export both `<HANDLER>` (entry) and `<HANDLER>_NAME` (ASCIIZ label); vector retarget operations must update both target address and name pointer as one logical transaction.
 - Safety warning: direct live writes with `!M` to hook bytes (`$0089-$0091`, especially `$008C-$008E`) are non-atomic and debug-only. Possible side effects include mixed-byte jumps, hangs/crashes, wrong routine dispatch, and vector-name display mismatch while bytes are mid-update.
 - See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
@@ -221,6 +222,7 @@ Notes:
 - A staged update plus atomic commit mechanism is the current direction for vector changes.
 - NMI retargeting direction: avoid in-place patching; use two complete slots and commit with a single-byte active-slot selector flip.
 - Direct `!M` edits to live vector hook bytes remain available for debug bring-up, but are explicitly unsafe for production/runtime patch flow.
+- TODO: extend `V` IRQ display to show sub-dispatch targets on separate lines (`BRK:` and `HW:`), e.g., `IRQ: ... > DISPATCH`, then `BRK: XXXX <name>` and `HW: YYYY <name>`.
 - Mandate (non-changing requirement): any operation that updates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation details may change, but this requirement does not.
 
 ### Open Design Item (Deferred)

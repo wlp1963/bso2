@@ -210,6 +210,9 @@ RBUF_DATA:              DS          RBUF_SIZE ; INPUT RING BUFFER STORAGE
 CMD_LINE:               DS          CMD_MAX_LEN+1 ; PARSED COMMAND + NULL
 CMD_LAST_LINE:          DS          CMD_MAX_LEN+1 ; LAST COMMAND + NULL
 RESET_COOKIE:           DS          4   ; RESET-PERSISTENT COOKIE
+UNASM_NEXT:             DS          2   ; NEXT START ADDR FOR "U" (UDATA)
+UNASM_SPAN:             DS          2   ; BYTE COUNT FOR REPEATED "U" (UDATA)
+UNASM_VALID:            DS          1   ; 1 IF UNASM_NEXT/UNASM_SPAN VALID
 F_PATTERN:              DS          F_MAX_BYTES
                                         ; FILL BYTE PATTERN (UP TO 16 BYTES)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
@@ -743,6 +746,7 @@ CMD_PARSER_INIT:
                         LDA         #SYSF_GO_FLAG_M
                         TRB         SYS_FLAGS
                         STZ         DUMP_VALID
+                        STZ         UNASM_VALID
                         STZ         MOD_VALID
                         RTS
 
@@ -862,6 +866,11 @@ CMD_REPEAT_LAST:
                         BNE         ?CRL_DONE
                         LDA         CMD_LAST_LEN
                         BEQ         ?CRL_DONE
+                        LDA         CMD_LAST_LINE
+                        CMP         #'D'
+                        BEQ         ?CRL_REPEAT_D
+                        CMP         #'U'
+                        BEQ         ?CRL_REPEAT_U
                         LDX         #$00
 ?CRL_COPY:
                         LDA         CMD_LAST_LINE,X
@@ -872,6 +881,36 @@ CMD_REPEAT_LAST:
                         BRA         ?CRL_COPY
 ?CRL_READY:
                         STX         CMD_LEN
+                        JSR         PRT_CRLF
+                        LDA         #$01
+                        STA         CMD_READY
+                        RTS
+
+?CRL_REPEAT_D:
+        ; D has built-in cursor/span repeat state, so UP uses bare "D"
+        ; even when last command was "D <START>" or "D <START> <END>".
+                        LDA         #'D'
+                        STA         CMD_LINE
+                        STZ         CMD_LINE+1
+                        LDA         #'D'
+                        JSR         WRITE_BYTE
+                        LDA         #$01
+                        STA         CMD_LEN
+                        JSR         PRT_CRLF
+                        LDA         #$01
+                        STA         CMD_READY
+                        RTS
+
+?CRL_REPEAT_U:
+        ; U has built-in cursor/span repeat state, so UP uses bare "U"
+        ; even when last command was "U <START> <END>".
+                        LDA         #'U'
+                        STA         CMD_LINE
+                        STZ         CMD_LINE+1
+                        LDA         #'U'
+                        JSR         WRITE_BYTE
+                        LDA         #$01
+                        STA         CMD_LEN
                         JSR         PRT_CRLF
                         LDA         #$01
                         STA         CMD_READY
@@ -2365,14 +2404,35 @@ DD_RUN:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_UNASM
 ; DESCRIPTION: DISASSEMBLES A 65C02 MEMORY RANGE
-; USAGE: U <START> <END>
+; USAGE: U [<START> <END>]
 ; NOTES:
 ;   - END IS INCLUSIVE.
 ;   - OUTPUT FORMAT: "ADDR: MNM OPERAND"
 ; ----------------------------------------------------------------------------
 CMD_DO_UNASM:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?UD_HAS_START
 
+        ; --- U (repeat from saved next/span) ---
+                        LDA         UNASM_VALID
+                        BNE         ?UD_REPEAT_OK
+                        PRT_CSTRING MSG_U_USAGE
+                        RTS
+?UD_REPEAT_OK:
+                        LDA         UNASM_NEXT
+                        STA         PTR_DUMP_CUR
+                        LDA         UNASM_NEXT+1
+                        STA         PTR_DUMP_CUR+1
+        ; Repeat mode steps exactly one disassembled instruction.
+                        LDA         PTR_DUMP_CUR
+                        STA         PTR_TEMP
+                        LDA         PTR_DUMP_CUR+1
+                        STA         PTR_TEMP+1
+                        JMP         UD_RUN
+
+?UD_HAS_START:
                         JSR         CMD_PARSE_ADDR16_TOKEN
                         CMP         #$00
                         BEQ         ?UD_START_OK
@@ -2410,10 +2470,37 @@ CMD_DO_UNASM:
                         STA         PTR_TEMP
                         LDA         CMD_PARSE_VAL+1
                         STA         PTR_TEMP+1
-                        JSR         MEM_DISASM_65C02
-                        RTS
+        ; NEXT START = END + 1 (KEEP IN PTR_LEG UNTIL UD_RUN COMMITS)
+                        CLC
+                        LDA         PTR_TEMP
+                        ADC         #$01
+                        STA         PTR_LEG
+                        LDA         PTR_TEMP+1
+                        ADC         #$00
+                        STA         PTR_LEG+1
+        ; SPAN = END_EXCLUSIVE - START
+                        LDA         PTR_LEG
+                        SEC
+                        SBC         PTR_DUMP_CUR
+                        STA         UNASM_SPAN
+                        LDA         PTR_LEG+1
+                        SBC         PTR_DUMP_CUR+1
+                        STA         UNASM_SPAN+1
+                        JMP         UD_RUN
 ?UD_RANGE_ERR:
                         PRT_CSTRING MSG_U_RANGE_ERR
+                        RTS
+
+UD_RUN:
+                        JSR         MEM_DISASM_65C02
+        ; Use actual disassembler post-run cursor so repeats continue
+        ; at the next instruction boundary (not just END+1).
+                        LDA         PTR_DUMP_CUR
+                        STA         UNASM_NEXT
+                        LDA         PTR_DUMP_CUR+1
+                        STA         UNASM_NEXT+1
+                        LDA         #$01
+                        STA         UNASM_VALID
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -4428,13 +4515,13 @@ DEBUG_PRINT_CONTEXT:
                         LDA         DBG_MODE
                         CMP         #DBG_MODE_BRK
                         BNE         ?DPC_TRAP_LINE
-                        JSR         DEBUG_PRINT_BRK_PREV
+                        JSR         DEBUG_PRINT_BRK_CURR_NEXT
 ?DPC_TRAP_LINE:
                         JSR         PRT_CRLF
                         LDA         DBG_MODE
                         CMP         #DBG_MODE_BRK
                         BNE         ?DPC_NO_TRAP_PREFIX
-                        PRT_CSTRING STR_TRAP
+                        PRT_CSTRING STR_STATE
 ?DPC_NO_TRAP_PREFIX:
                         JSR         DEBUG_BUILD_TAG
                         PRT_CSTRING DBG_TAG_BUF
@@ -4499,7 +4586,7 @@ DEBUG_PRINT_CONTEXT:
                         LDA         DBG_MODE
                         CMP         #DBG_MODE_BRK
                         BNE         ?DPC_STD_NEXT
-                        JSR         DEBUG_PRINT_BRK_NEXT
+                        JSR         PRT_CRLF
                         RTS
 ?DPC_STD_NEXT:
                         JSR         DEBUG_PRINT_NEXT_INSN
@@ -4522,19 +4609,29 @@ DEBUG_PRINT_NEXT_INSN:
                         RTS
 
 ; ----------------------------------------------------------------------------
-; SUBROUTINE: DEBUG_PRINT_BRK_PREV
-; DESCRIPTION: PRINTS "PREV: " + DISASM AT BRK OPCODE ADDRESS (DBG_PC-2)
+; SUBROUTINE: DEBUG_PRINT_BRK_CURR_NEXT
+; DESCRIPTION: PRINTS "CURR: " (DBG_PC-2) + "NEXT: " (DBG_PC) ON ONE LINE
 ; ----------------------------------------------------------------------------
-DEBUG_PRINT_BRK_PREV:
+DEBUG_PRINT_BRK_CURR_NEXT:
                         PUSH        A, X, Y
                         JSR         PRT_CRLF
-                        PRT_CSTRING STR_PREV
+                        PRT_CSTRING STR_CURR
                         LDA         DBG_PC_LO
                         SEC
                         SBC         #$02
                         STA         PTR_DUMP_CUR
                         LDA         DBG_PC_HI
                         SBC         #$00
+                        STA         PTR_DUMP_CUR+1
+                        JSR         DEBUG_PRINT_ONE_INSN_AT_PTR
+                        JSR         PRT_SPACE
+                        JSR         PRT_SPACE
+                        JSR         PRT_SPACE
+                        JSR         PRT_SPACE
+                        PRT_CSTRING STR_NEXT
+                        LDA         DBG_PC_LO
+                        STA         PTR_DUMP_CUR
+                        LDA         DBG_PC_HI
                         STA         PTR_DUMP_CUR+1
                         JSR         DEBUG_PRINT_ONE_INSN_AT_PTR
                         PULL        Y, X, A
@@ -4824,6 +4921,8 @@ SYS_NMI:                SEI             ; LOCK INTS
                         JSR         PRT_UNDER ; MONITOR-IDLE CODE PATH
                         RTI             ; DONE
 
+STR_NMI_NAME:           DB          "               **NMI_DEFAULT_PLACEHOLDER**", 0
+
 SYS_IRQ:                SEI             ; LOCK
                         CLD             ; CLEAR
                         JSR         DEBUG_IRQ
@@ -4856,6 +4955,8 @@ SYS_IRQ:                SEI             ; LOCK
                         STA         $103,X ; STACKED PC HI (AFTER RTI)
 ?SIRQ_RTI:
                         RTI             ; DONE
+
+STR_IRQ_NAME:           DB          "               **IRQ_DEFAULT_PLACEHOLDER**", 0
 
 ; ----------------------------------------------------------------------------
 ; HARDWARE CONTROL
@@ -5455,6 +5556,7 @@ SHOW_VECTORS:
                         LDA         #>HW_VEC_RST_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
+                        PRT_CSTRING STR_RST_NAME
                         JSR         PRT_CRLF
 
         ; --- SHOW NMI CHAIN ---
@@ -5464,6 +5566,7 @@ SHOW_VECTORS:
                         LDA         #>HW_VEC_NMI_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
+                        PRT_CSTRING STR_NMI_NAME
                         JSR         PRT_CRLF
 
         ; --- SHOW IRQ CHAIN ---
@@ -5473,6 +5576,7 @@ SHOW_VECTORS:
                         LDA         #>HW_VEC_IRQ_ADDR
                         STA         PTR_TEMP+1
                         JSR         FOLLOW_CHAIN
+                        PRT_CSTRING STR_IRQ_NAME
                         JSR         PRT_CRLF
                         RTS
 
@@ -5497,7 +5601,7 @@ FOLLOW_CHAIN:
                         STA         PTR_LEG+1
 
 ?CHAIN_LOOP:
-                        PRT_CSTRING STR_ARROW ; ">"
+                        PRT_CSTRING STR_ARROW ; " > "
 
         ; --- TRAMPOLINE CHECK: IF HI BYTE IS 00, WRAP IN BRACKETS ---
                         LDA         PTR_LEG+1
@@ -5907,7 +6011,7 @@ MSG_HELP_FULL_29:       DB          $0D, $0A
                         DB          "  P                RESERVED / DEPRECATED ("
                         DB          "USE I O P)", 0
 MSG_HELP_FULL_21:       DB          $0D, $0A
-                        DB          "  U S E            DISASSEMBLE 65C02 RANGE"
+                        DB          "  U [S E]          DISASSEMBLE 65C02 RANGE"
                         DB          0
 MSG_HELP_FULL_22:       DB          $0D, $0A
                         DB          "  V                SHOW VECTOR CHAINS (DEP"
@@ -5952,7 +6056,7 @@ MSG_HELP_FULL_39:       DB          $0D, $0A
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0
-MSG_U_USAGE:            DB          $0D, $0A, "USAGE: U START END", 0
+MSG_U_USAGE:            DB          $0D, $0A, "USAGE: U [START END]", 0
 MSG_U_RANGE_ERR:        DB          $0D, $0A, "U RANGE ERROR", 0
 MSG_A_USAGE:            DB          $0D, $0A
                         DB          "USAGE: A START [MNEMONIC OPERANDS]", 0
@@ -6001,10 +6105,11 @@ MSG_PROTECT_ERR:        DB          $0D, $0A
                         DB          "PROTECTED RANGE ($0000-$03FF). USE ! TO "
                         DB          "FORCE", 0
 STR_RST:                DB          "RST: ", 0
+STR_RST_NAME:           DB          " **RST_DEFAULT_PLACEHOLDER**", 0
 STR_NMI:                DB          "NMI: ", 0
 STR_IRQ:                DB          "IRQ: ", 0
-STR_ARROW:              DB          ">", 0
-STR_PREV:               DB          "PREV: ", 0
-STR_TRAP:               DB          "TRAP: ", 0
+STR_ARROW:              DB          " > ", 0
+STR_CURR:               DB          "CURR: ", 0
+STR_STATE:              DB          "STATE:", 0
 STR_NEXT:               DB          "NEXT: ", 0
                         END
