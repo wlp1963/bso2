@@ -69,7 +69,7 @@ M = enter monitor</p>
     <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
     <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code></td><td>Force-prefix for protected commands.</td><td>Allows access to protected low RAM (<code>$0000-$03FF</code>).</td></tr>
     <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
-    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Displays HW vector to final code path.</td></tr>
+    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Compact format (no spaces): <code>RST: FFFC&gt;F818&gt;8004&gt;9F31&gt;[0089]&gt;800D</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
   </table>
 
   <h2>3) Interactive Caveats</h2>
@@ -82,6 +82,7 @@ M = enter monitor</p>
     <li><code>F</code> does not support interactive mode.</li>
     <li>At an empty monitor prompt, <code>Up Arrow</code> (<code>ESC [ A</code>) repeats and executes the previous command.</li>
     <li><code>F/M/C/A/N</code> block access to <code>$0000-$03FF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
+    <li>Direct vector-hook edits with <code>!M</code> are non-atomic and debug-only. Writing live bytes at <code>$0089-$0091</code> (especially <code>$008C-$008E</code>) can produce mixed-byte jumps, wrong dispatch, hangs/crashes, or temporary vector-name mismatch while patching.</li>
     <li>Post-command game ask hook is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
     <li>Hook flag is fixed/reserved at <code>$0088</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 88 01</code> sets pending; <code>!M 88 00</code> clears pending.</li>
     <li>Terminal width byte is fixed/reserved at <code>$0093</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
@@ -244,10 +245,13 @@ DBG_TAG_BUF   6 bytes</p>
   <h3>9.6) Vector + Safety Direction (Pre-Publish Requirement)</h3>
   <ul>
     <li>Vector updates must support dynamic atomic update behavior.</li>
+    <li>Handler-name contract direction: every patchable target exports <code>&lt;HANDLER&gt;</code> and <code>&lt;HANDLER&gt;_NAME</code> (ASCIIZ); retarget operations update target address and name pointer together.</li>
     <li>Critical windows include vector commit and FLASH routines.</li>
     <li>During critical windows, all EDU LEDs should flash to signal that NMI should not be pressed.</li>
     <li>NMI path should be guarded/deferred during critical windows instead of normal debug flow.</li>
     <li>Staged-update plus atomic-commit behavior is the intended implementation pattern.</li>
+    <li>NMI retargeting direction: patch inactive slot fully, then commit via single-byte active-slot selector flip (no in-place live NMI hook rewrite).</li>
+    <li>Direct <code>!M</code> edits to live vector hook bytes are allowed for bring-up/debug but are intentionally outside the production-safe retarget path.</li>
     <li>Mandate (non-changing requirement): any operation that mutates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation detail may change, requirement does not.</li>
   </ul>
 

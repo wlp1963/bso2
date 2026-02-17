@@ -108,6 +108,9 @@ Notes:
 - `A` supports relative-branch target entry via absolute hex address (range checked).
 - `A` supports explicit accumulator syntax such as `INC A`.
 - Fixed-address contract: PAGE0 is anchored at `$0040`; pinned bytes include `GAME_ASK_PENDING=$0088`, `RST_HOOK=$0089`, `NMI_HOOK=$008C`, `IRQ_HOOK=$008F`, `BRK_FLAG=$0092`, `TERM_COLS=$0093`; hardware vectors remain `NMI=$FFFA`, `RST=$FFFC`, `IRQ/BRK=$FFFE`.
+- `V` vector-chain format is compact (`RST: FFFC>F818>8004>9F31>[0089]>800D`); bracketed links use `[addr16]` and indicate a patchable 16-bit RAM trampoline address.
+- Vector naming contract (draft): each patchable target must export both `<HANDLER>` (entry) and `<HANDLER>_NAME` (ASCIIZ label); vector retarget operations must update both target address and name pointer as one logical transaction.
+- Safety warning: direct live writes with `!M` to hook bytes (`$0089-$0091`, especially `$008C-$008E`) are non-atomic and debug-only. Possible side effects include mixed-byte jumps, hangs/crashes, wrong routine dispatch, and vector-name display mismatch while bytes are mid-update.
 - See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
 
 ## Development
@@ -216,6 +219,8 @@ Notes:
 - During critical windows, all EDU LEDs should flash as a "do not press NMI" signal.
 - NMI handling should be guarded/deferred during critical windows rather than entering the normal debug flow.
 - A staged update plus atomic commit mechanism is the current direction for vector changes.
+- NMI retargeting direction: avoid in-place patching; use two complete slots and commit with a single-byte active-slot selector flip.
+- Direct `!M` edits to live vector hook bytes remain available for debug bring-up, but are explicitly unsafe for production/runtime patch flow.
 - Mandate (non-changing requirement): any operation that updates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation details may change, but this requirement does not.
 
 ### Open Design Item (Deferred)

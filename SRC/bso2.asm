@@ -5497,7 +5497,7 @@ FOLLOW_CHAIN:
                         STA         PTR_LEG+1
 
 ?CHAIN_LOOP:
-                        PRT_CSTRING STR_ARROW ; " > "
+                        PRT_CSTRING STR_ARROW ; ">"
 
         ; --- TRAMPOLINE CHECK: IF HI BYTE IS 00, WRAP IN BRACKETS ---
                         LDA         PTR_LEG+1
@@ -6003,7 +6003,7 @@ MSG_PROTECT_ERR:        DB          $0D, $0A
 STR_RST:                DB          "RST: ", 0
 STR_NMI:                DB          "NMI: ", 0
 STR_IRQ:                DB          "IRQ: ", 0
-STR_ARROW:              DB          " > ", 0
+STR_ARROW:              DB          ">", 0
 STR_PREV:               DB          "PREV: ", 0
 STR_TRAP:               DB          "TRAP: ", 0
 STR_NEXT:               DB          "NEXT: ", 0
