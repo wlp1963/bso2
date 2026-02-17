@@ -1,3 +1,8 @@
+# bso2 Demo Transcript
+
+Source: `DOCS/bso2 demo.log`
+
+```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=
 
 POWER ON
@@ -158,3 +163,4 @@ Q HALT - RESET/NMI TO RESUME
 HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C D F L M P U V
 WANT TO PLAY A GAME?
 -
+```
