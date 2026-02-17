@@ -1,8 +1,3 @@
-# bso2 Demo Transcript
-
-Source: `DOCS/bso2 demo.log`
-
-```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=
 
 POWER ON
@@ -95,7 +90,7 @@ MONITOR HELP
 -D
 008A: 0D 80                   |                          |..|
 
--M88 01
+-!M  M88 01
 PROTECTED RANGE ($0000-$03FF). USE ! TO FORCE
 -!M88 01
 WANT TO PLAY A GAME?
@@ -105,11 +100,11 @@ I AM THINKING OF A NUMBER (1-10)
 TOO LOW
 ? 8
 CORRECT
--M400
+-! M400
 0400: 00 01
 0401: 00 02
 0402: 00 03
-0403: 00 .
+0403: 00 
 -D 400 402
 0400: 01 02 03                |                          |...|
 
@@ -163,4 +158,3 @@ Q HALT - RESET/NMI TO RESUME
 HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C D F L M P U V
 WANT TO PLAY A GAME?
 -
-```

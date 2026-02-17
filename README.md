@@ -258,20 +258,21 @@ STATE:[BRK] 00 PC:1008 A:3E X:FF Y:7F P:35 [nv-BdIzC] S:F9
 - Aliases are spelling variants only (same meaning); command override semantics are not used.
 - Alias windows will be used during migration so old commands still run while new forms are introduced.
 
-### Compression + TX Output (Priority 0)
+### Active TODO (Pressing)
 
-- Priority 0: implement compression/decompression for monitor text to recover `KDATA` headroom.
-- Preferred first implementation is tokenized text with RLE support.
-- RLE rule: encode runs of `3+` consecutive bytes.
-- Special run tokens are planned for frequent bytes: `space`, `-`, `0`, `1`, and `*`.
-- Historical design note: RLE was a practical production tool in ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio.
-- Decompression direction is from ROM-compressed data to a sink (`UART` stream or RAM/TX buffer).
-- A dedicated `TX` ring buffer is planned for nonblocking output.
-- Decoder should be resumable when TX is full (pause/resume state machine).
-- `RX` and `TX` stay separate; do not reuse the input ring for output.
-- For virtual output streams, default plan is one shared TX ring with scheduler/priority policy; per-stream TX rings are optional only if isolation/QoS is required.
-- Raw/uncompressed source strings remain in assembly source as the authoring truth.
-- Planned build flow: use marked header/trailer regions for string blocks, run a GNU C packer against that source region, and generate an include consumed by the assembler.
+#### Now
+
+- TODO: extend `V` IRQ display to show sub-dispatch targets on separate lines (`BRK:` and `HW:`).
+- TODO: add post-link map check that enforces `END_KDATA < $F000`.
+
+#### Before Publish
+
+- TODO: provide XMODEM receive and send paths before publish (`X R`/`XR`, `X S`/`XS`).
+- TODO: implement staged vector update + atomic commit flow for runtime retargeting.
+- TODO: enforce critical-window behavior for FLASH/vector mutation paths (LED warning + NMI guard/defer).
+- TODO: enforce dangerous `B` operation policy (`!` required + explicit confirmation + fail-closed without mutation).
+- TODO: add deterministic status reporting for dangerous operations (`OK`, `ABORTED`, `VERIFY_FAIL`, `FLASH_FAIL`, `DENIED` plus status byte).
+- Deferred (not current TODO): text compression/decompression, RLE/tokenization, and TX ring architecture are postponed while 32K FLASH headroom is sufficient.
 
 ### Search Family (`S`) Plan
 
@@ -374,7 +375,6 @@ STATE:[BRK] 00 PC:1008 A:3E X:FF Y:7F P:35 [nv-BdIzC] S:F9
 - A staged update plus atomic commit mechanism is the current direction for vector changes.
 - NMI retargeting direction: avoid in-place patching; use two complete slots and commit with a single-byte active-slot selector flip.
 - Direct `!M` edits to live vector hook bytes remain available for debug bring-up, but are explicitly unsafe for production/runtime patch flow.
-- TODO: extend `V` IRQ display to show sub-dispatch targets on separate lines (`BRK:` and `HW:`), e.g., `IRQ: ... > DISPATCH`, then `BRK: XXXX <name>` and `HW: YYYY <name>`.
 - Mandate (non-changing requirement): any operation that updates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation details may change, but this requirement does not.
 
 ### Open Design Item (Deferred)

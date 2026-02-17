@@ -253,7 +253,6 @@ DBG_TAG_BUF   6 bytes</p>
     <li>Staged-update plus atomic-commit behavior is the intended implementation pattern.</li>
     <li>NMI retargeting direction: patch inactive slot fully, then commit via single-byte active-slot selector flip (no in-place live NMI hook rewrite).</li>
     <li>Direct <code>!M</code> edits to live vector hook bytes are allowed for bring-up/debug but are intentionally outside the production-safe retarget path.</li>
-    <li>TODO: extend <code>V</code> IRQ output to include sub-dispatch lines for <code>BRK</code> and <code>HW</code> targets (for example <code>IRQ: ... &gt; DISPATCH</code>, then <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>).</li>
     <li>Mandate (non-changing requirement): any operation that mutates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation detail may change, requirement does not.</li>
   </ul>
 
@@ -263,21 +262,21 @@ DBG_TAG_BUF   6 bytes</p>
     <li>If adopted as an operation chain wrapper, error policy and guard policy must be defined explicitly.</li>
   </ul>
 
-  <h3>9.8) Compression + TX Ring (Priority 0)</h3>
+  <h3>9.8) Active TODO (Pressing)</h3>
+  <h4>Now</h4>
   <ul>
-    <li>Priority 0 roadmap item: reduce monitor-text ROM footprint with compression.</li>
-    <li>Planned model: tokenized text plus RLE.</li>
-    <li>RLE threshold: encode runs of 3 or more consecutive bytes.</li>
-    <li>Frequent-byte run tokens are planned for <code>space</code>, <code>-</code>, <code>0</code>, <code>1</code>, and <code>*</code>.</li>
-    <li>Historical design note: RLE was a practical production tool in ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio.</li>
-    <li>Decompression direction is ROM compressed stream to output sink (UART stream directly or TX/RAM staging).</li>
-    <li>A dedicated TX ring buffer is planned for nonblocking output.</li>
-    <li>Decoder should be pausable/resumable when TX ring space is exhausted.</li>
-    <li>RX and TX buffers remain separate.</li>
-    <li>Default virtual-stream plan: one shared TX ring with scheduling/priority policy.</li>
-    <li>Per-stream TX rings are optional and should be introduced only if stream isolation/QoS is required.</li>
-    <li>Raw/uncompressed source strings remain in assembly source as authoring truth.</li>
-    <li>Planned build flow: marked header/trailer string regions are consumed by a GNU C packer that generates an assembler include.</li>
+    <li>TODO: extend <code>V</code> IRQ output to include sub-dispatch lines for <code>BRK</code> and <code>HW</code> targets (for example <code>IRQ: ... &gt; DISPATCH</code>, then <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>).</li>
+    <li>TODO: add a post-link map check that enforces <code>END_KDATA &lt; $F000</code>.</li>
+  </ul>
+
+  <h4>Before Publish</h4>
+  <ul>
+    <li>TODO: provide XMODEM receive and send paths before publish (<code>X R</code>/<code>XR</code>, <code>X S</code>/<code>XS</code>).</li>
+    <li>TODO: implement staged vector update plus atomic commit flow for runtime retargeting.</li>
+    <li>TODO: enforce critical-window behavior for FLASH/vector mutation paths (LED warning plus NMI guard/defer).</li>
+    <li>TODO: enforce dangerous <code>B</code> operation policy (<code>!</code> required, explicit confirmation, and fail-closed behavior without mutation).</li>
+    <li>TODO: add deterministic status reporting for dangerous operations (status code byte plus <code>OK</code>/<code>ABORTED</code>/<code>VERIFY_FAIL</code>/<code>FLASH_FAIL</code>/<code>DENIED</code>).</li>
+    <li>Deferred (not current TODO): text compression/decompression, tokenization/RLE, and TX ring architecture while 32K FLASH headroom is sufficient.</li>
   </ul>
 
   <h3>9.9) Flash / Bank Safety Policy (Critical, Non-Negotiable)</h3>
