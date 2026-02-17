@@ -29,6 +29,7 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - If you build something useful from this project, I'd love to hear about it and follow your work.
 - The only constant is that nothing is safe from change.
 - "Perfect is the enemy of good." - Voltaire
+- Milestone: David Gray (WDC) invited to this repository at `2026-02-17T14:21:00-06:00`.
 - Milestone: historical RLE design-note rationale documented at `2026-02-16T00:45:50-06:00`.
 
 ## Repository Layout
