@@ -5026,7 +5026,7 @@ SYS_NMI:                SEI             ; LOCK INTS
                         JSR         PRT_UNDER ; MONITOR-IDLE CODE PATH
                         RTI             ; DONE
 
-STR_NMI_NAME:           DB          "               **NMI_DEFAULT_PLACEHOLDER**", 0
+STR_NMI_NAME:           DB          "               **NMI_PLACEHOLDER**", 0
 
 SYS_IRQ:                SEI             ; LOCK
                         CLD             ; CLEAR
@@ -5061,7 +5061,7 @@ SYS_IRQ:                SEI             ; LOCK
 ?SIRQ_RTI:
                         RTI             ; DONE
 
-STR_IRQ_NAME:           DB          "               **IRQ_DEFAULT_PLACEHOLDER**", 0
+STR_IRQ_NAME:           DB          "               **IRQ_PLACEHOLDER**", 0
 
 ; ----------------------------------------------------------------------------
 ; HARDWARE CONTROL
@@ -6222,7 +6222,7 @@ MSG_PROTECT_ERR:        DB          $0D, $0A
                         DB          "PROTECTED RANGE ($0000-$03FF). USE ! TO "
                         DB          "FORCE", 0
 STR_RST:                DB          "RST: ", 0
-STR_RST_NAME:           DB          " **RST_DEFAULT_PLACEHOLDER**", 0
+STR_RST_NAME:           DB          " **RST_PLACEHOLDER**", 0
 STR_NMI:                DB          "NMI: ", 0
 STR_IRQ:                DB          "IRQ: ", 0
 STR_ARROW:              DB          " > ", 0

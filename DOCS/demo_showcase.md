@@ -165,4 +165,18 @@ Q HALT - RESET/NMI TO RESUME
 HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C D F L M P U V
 WANT TO PLAY A GAME?
 -
+
+
+RESET TRIGGERED
+C/W/M C
+CLEAR MEMORY? (Y/N) Y
+TERM WIDTH 4=40 8=80 1=132 [8]? 
+RAM CLEARED
+
+     **** basic system operations/2 ****
+     ****       b s o / 2  v0 . 9   ****
+     ****         6 5 0 2           ****
+
+
+-H
 ```
