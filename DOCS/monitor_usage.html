@@ -265,6 +265,7 @@ DBG_TAG_BUF   6 bytes</p>
   <h3>9.8) Active TODO (Pressing)</h3>
   <h4>Now</h4>
   <ul>
+    <li>TODO: wrap <code>WDCMONv2</code> FLASH routine calls behind <code>bso2</code> wrapper/trampoline entry points.</li>
     <li>TODO: extend <code>V</code> IRQ output to include sub-dispatch lines for <code>BRK</code> and <code>HW</code> targets (for example <code>IRQ: ... &gt; DISPATCH</code>, then <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>).</li>
     <li>TODO: add a post-link map check that enforces <code>END_KDATA &lt; $F000</code>.</li>
   </ul>

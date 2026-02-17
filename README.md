@@ -114,7 +114,7 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 
 ### Snapshot
 
-- `Now`: extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`) and add post-link check for `END_KDATA < $F000`.
+- `Now`: wrap `WDCMONv2` FLASH calls behind `bso2` wrappers/trampolines, extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`), and add post-link check for `END_KDATA < $F000`.
 - `Before publish`: complete XMODEM send/receive, staged vector commit flow, and critical FLASH/vector safety behaviors.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
