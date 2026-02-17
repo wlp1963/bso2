@@ -366,6 +366,8 @@ SHOW_STARTUP_HELP_ONCE:
                         LDA         #'H'
                         JSR         WRITE_BYTE
                         PRT_CSTRING MSG_HELP_BOOT_SHORT
+                        JSR         PRT_CRLF
+                        JSR         PRT_UNDER
 ?SSHO_EXIT:
                         RTS
 

@@ -40,6 +40,8 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - `tools/bso2com/Makefile`: build rules for `bso2com`
 - `DOCS/monitor_usage.html`: detailed command reference
 - `DOCS/monitor_usage.pdf`: printable/offline command reference
+- `DOCS/demo_showcase.md`: curated demo script from live session
+- `bso2 demo.log`: raw PuTTY capture used for demo/showcase
 
 ## Prerequisites
 
@@ -194,6 +196,26 @@ Notes:
 - Vector naming contract (draft): each patchable target must export both `<HANDLER>` (entry) and `<HANDLER>_NAME` (ASCIIZ label); vector retarget operations must update both target address and name pointer as one logical transaction.
 - Safety warning: direct live writes with `!M` to hook bytes (`$0089-$0091`, especially `$008C-$008E`) are non-atomic and debug-only. Possible side effects include mixed-byte jumps, hangs/crashes, wrong routine dispatch, and vector-name display mismatch while bytes are mid-update.
 - See `DOCS/monitor_usage.html` for full behavior, macro parameters, and callable function API.
+
+## Demo Showcase
+
+- Raw log: `bso2 demo.log` (PuTTY capture)
+- Curated walkthrough: `DOCS/demo_showcase.md`
+
+Quick excerpt:
+
+```text
+POWER ON
+TERM WIDTH 4=40 8=80 1=132 [8]?
+RAM CLEARED
+...
+-H
+HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C D F L M P U V
+...
+-X1000
+CURR: 1006: BRK #$00    NEXT: 1008: INY
+STATE:[BRK] 00 PC:1008 A:3E X:FF Y:7F P:35 [nv-BdIzC] S:F9
+```
 
 ## Development
 
