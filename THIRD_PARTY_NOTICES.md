@@ -8,6 +8,16 @@ This project is MIT-licensed for original code in this repository.
 - This project references WDC hardware/platform behavior and toolchain usage.
 - This repository does **not** include or redistribute WDC tool binaries or WDC ROM images.
 
+### WDCMONv2 Integration Note
+
+- `bso2` plans to use `WDCMONv2` FLASH behavior through wrappers/trampolines.
+- Intended usage is interface/protocol compatibility and wrapper invocation flow, not direct source-text copy.
+- If direct source from `WDCMONv2` is ever imported, that import must include:
+- upstream license/permission verification
+- explicit attribution/provenance entry in this file
+- clear file-level notice describing what was copied vs. newly written
+- Current local `WDCMONv2` workspace inspected at `C:\Users\Walter\Documents\PROJECTS\WDCMONv2` did not contain an obvious `LICENSE/COPYING/NOTICE` file; treat upstream licensing status as unresolved until confirmed.
+
 ### WDC EDU sample provenance
 
 - Upstream archive source used during development:

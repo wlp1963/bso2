@@ -280,6 +280,36 @@ DBG_TAG_BUF   6 bytes</p>
     <li>Planned build flow: marked header/trailer string regions are consumed by a GNU C packer that generates an assembler include.</li>
   </ul>
 
+  <h3>9.9) Flash / Bank Safety Policy (Critical, Non-Negotiable)</h3>
+  <ul>
+    <li><code>B</code> must not execute dangerous operations by default.</li>
+    <li><code>bso2</code> plans to use <code>WDCMONv2</code> FLASH routines through wrappers/trampolines.</li>
+    <li>Integration intent is behavioral/protocol compatibility via wrapper entry points, not direct source-text copy.</li>
+    <li>Any dangerous <code>B</code> operation requires both force-prefix <code>!</code> and explicit user confirmation.</li>
+    <li>Dangerous operations include at minimum erase, program/write, monitor self-update, vector commit, and bank activation/commit transitions.</li>
+    <li>If <code>!</code> is absent, dangerous operations fail closed with no side effects.</li>
+    <li>Confirmation must be operation-specific (typed intent token), not an implicit continue.</li>
+    <li>During dangerous operations: enter critical guard mode before mutation starts, flash all LEDs, and guard/defer NMI debug flow until critical mode exits.</li>
+    <li>On verify/check failure: abort mutation, exit critical mode cleanly, and report explicit status.</li>
+    <li>Required output for dangerous operations: status code byte plus textual result (<code>OK</code>, <code>ABORTED</code>, <code>VERIFY_FAIL</code>, <code>FLASH_FAIL</code>, <code>DENIED</code>).</li>
+  </ul>
+
+  <h3>9.10) Board Self-Update Policy</h3>
+  <ul>
+    <li>Board self-update is always dangerous and always requires <code>!</code> plus explicit confirmation.</li>
+    <li>Before final commit, display target region, byte count, and integrity value (checksum/hash when available).</li>
+    <li>Preferred execution shape: preflight validation, stage payload, erase/program, verify, then commit/activate.</li>
+    <li>Avoid in-place blind overwrite as the only strategy; preserve a recovery path.</li>
+    <li>Self-update is fully covered by the non-changing mandate: any FLASH/vector mutation path (including module/transient load/activation) must assert critical indication and guard behavior.</li>
+  </ul>
+
+  <h3>9.11) Host Tooling Direction (Linux GNU C)</h3>
+  <ul>
+    <li>Critical FLASH workflows are expected to have a Linux GNU C host path.</li>
+    <li>Python helpers may exist for convenience, but they are not the required path for critical FLASH operations.</li>
+    <li>Preferred host model: raw serial protocol wrappers in C with explicit timeout/error handling and deterministic status reporting.</li>
+  </ul>
+
   <h2>10) Legal Notice</h2>
   <ul>
     <li><code>WDC</code>, <code>W65C02</code>, and <code>W65C02EDU</code> are names associated with Western Design Center, Inc.</li>

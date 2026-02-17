@@ -171,6 +171,8 @@ SYSF_FORCE_MODE_M       EQU         %00000001 ; 1 IF COMMAND PREFIXED WITH '!'
 SYSF_NMI_FLAG_M         EQU         %00000010 ; 1 WHEN NMI SIGNAL IS PENDING
 SYSF_RESET_FLAG_M       EQU         %00000100 ; 1 IF RESET COOKIE PATH WAS TAKEN
 SYSF_GO_FLAG_M          EQU         %00001000 ; 1 WHILE X-LAUNCHED CODE IS RUNNING
+SYSF_H_AUTO_EN_M        EQU         %00010000 ; 1 IF STARTUP AUTO-HELP IS ENABLED
+SYSF_H_AUTO_PEND_M      EQU         %00100000 ; 1 IF STARTUP AUTO-HELP IS PENDING
 
 MOD_NEXT                EQU         PAGE_NUMBER ; LAST/NEXT MODIFY ADDRESS
 MOD_VALID               EQU         DBG_CONTINUE ; 1 IF MOD_NEXT IS VALID
@@ -250,6 +252,8 @@ SYS_RST:
                         STA         TERM_COLS
                         LDA         #$01 ; ASK ONCE AFTER RESET
                         STA         GAME_ASK_PENDING
+                        LDA         #SYSF_H_AUTO_EN_M+SYSF_H_AUTO_PEND_M
+                        TSB         SYS_FLAGS
                         LDA         #SYSF_RESET_FLAG_M
                         TRB         SYS_FLAGS
                                         ; 0 = POWER-ON PATH, 1 = RESET PATH
@@ -331,6 +335,7 @@ WARM:                   PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON
 WARM_NO_VECT:           PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON (NO VECTOR DUMP)
 MONITOR:                JSR         PRT_CRLF ; NEW LINE
                         JSR         PRT_UNDER ; PRINT CURSOR
+                        JSR         SHOW_STARTUP_HELP_ONCE
 ;       JSR     DEBUG                   ; TEST DUMP
                         JSR         RBUF_INIT ; RESET INPUT RING BUFFER
                         JSR         CMD_PARSER_INIT ; RESET COMMAND PARSER
@@ -342,6 +347,27 @@ MONITOR:                JSR         PRT_CRLF ; NEW LINE
                         JSR         CMD_PROCESS_IF_READY
                                         ; EXECUTE COMPLETED COMMAND
                         BRA         ?MONITOR_LOOP
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SHOW_STARTUP_HELP_ONCE
+; DESCRIPTION: ON FIRST MONITOR ENTRY, EMIT "-H" THEN SHORT HELP
+; INPUT: SYS_FLAGS
+; OUTPUT: STARTUP AUTO-HELP DISPLAYED AT MOST ONCE (UNTIL RE-ARMED)
+; ----------------------------------------------------------------------------
+SHOW_STARTUP_HELP_ONCE:
+                        LDA         #SYSF_H_AUTO_EN_M
+                        BIT         SYS_FLAGS
+                        BEQ         ?SSHO_EXIT
+                        LDA         #SYSF_H_AUTO_PEND_M
+                        BIT         SYS_FLAGS
+                        BEQ         ?SSHO_EXIT
+                        LDA         #SYSF_H_AUTO_PEND_M
+                        TRB         SYS_FLAGS
+                        LDA         #'H'
+                        JSR         WRITE_BYTE
+                        PRT_CSTRING MSG_HELP_BOOT_SHORT
+?SSHO_EXIT:
+                        RTS
 
 MEMCLR_CMD:
                         PRT_CSTRING MSG_RAM_CLEARED
@@ -1139,6 +1165,10 @@ CMD_DO_HELP_FULL:
                         BEQ         ?H_MEM
                         CMP         #'S'
                         BEQ         ?H_STEER
+                        CMP         #'-'
+                        BEQ         ?H_AUTO_OFF
+                        CMP         #'+'
+                        BEQ         ?H_AUTO_ON
                         BRA         ?H_USAGE
 ?H_ALL:
                         INX
@@ -1168,12 +1198,86 @@ CMD_DO_HELP_FULL:
                         BNE         ?H_USAGE
                         JSR         CMD_PRINT_HELP_STEERING
                         RTS
+?H_AUTO_OFF:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
+                        JSR         CMD_SET_AUTOHELP_OFF
+                        RTS
+?H_AUTO_ON:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?H_USAGE
+                        JSR         CMD_SET_AUTOHELP_ON
+                        RTS
 ?H_INDEX:
                         PRT_CSTRING MSG_HELP_SHORT
                         PRT_CSTRING MSG_HELP_SECTIONS
                         RTS
 ?H_USAGE:
                         PRT_CSTRING MSG_H_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_SET_AUTOHELP_OFF
+; DESCRIPTION: DISABLES STARTUP "-H" AUTO-HELP
+; ----------------------------------------------------------------------------
+CMD_SET_AUTOHELP_OFF:
+                        LDA         #SYSF_H_AUTO_EN_M+SYSF_H_AUTO_PEND_M
+                        TRB         SYS_FLAGS
+                        PRT_CSTRING MSG_H_AUTO_OFF
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_SET_AUTOHELP_ON
+; DESCRIPTION: ENABLES STARTUP "-H" AUTO-HELP (RE-ARMED FOR NEXT PROMPT)
+; ----------------------------------------------------------------------------
+CMD_SET_AUTOHELP_ON:
+                        LDA         #SYSF_H_AUTO_EN_M+SYSF_H_AUTO_PEND_M
+                        TSB         SYS_FLAGS
+                        PRT_CSTRING MSG_H_AUTO_ON
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_AUTOHELP_OFF_ALIAS
+; DESCRIPTION: ALIAS COMMAND "-H" TO DISABLE STARTUP AUTO-HELP
+; ----------------------------------------------------------------------------
+CMD_DO_AUTOHELP_OFF_ALIAS:
+                        LDX         #$01 ; PARSE AFTER '-'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'H'
+                        BNE         ?CDAHO_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CDAHO_USAGE
+                        JSR         CMD_SET_AUTOHELP_OFF
+                        RTS
+?CDAHO_USAGE:
+                        PRT_CSTRING MSG_AUTOHELP_ALIAS_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_AUTOHELP_ON_ALIAS
+; DESCRIPTION: ALIAS COMMAND "+H" TO ENABLE STARTUP AUTO-HELP
+; ----------------------------------------------------------------------------
+CMD_DO_AUTOHELP_ON_ALIAS:
+                        LDX         #$01 ; PARSE AFTER '+'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'H'
+                        BNE         ?CDAHO2_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CDAHO2_USAGE
+                        JSR         CMD_SET_AUTOHELP_ON
+                        RTS
+?CDAHO2_USAGE:
+                        PRT_CSTRING MSG_AUTOHELP_ALIAS_USAGE
                         RTS
 
 CMD_DO_QUIT_MONITOR:
@@ -2135,6 +2239,10 @@ CMD_TABLE:
                         DW          CMD_DO_HELP_FULL
                         DB          '?'
                         DW          CMD_DO_HELP_SHORT
+                        DB          '-'
+                        DW          CMD_DO_AUTOHELP_OFF_ALIAS
+                        DB          '+'
+                        DW          CMD_DO_AUTOHELP_ON_ALIAS
                         DB          $00
 
 ; ----------------------------------------------------------------------------
@@ -5927,16 +6035,25 @@ MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
                         DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0
+MSG_HELP_BOOT_SHORT:    DB          $0D, $0A
+                        DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
+                        DB          "D F L M P U V", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
                         DB          "D F L M P U V", 0
                         DB          $0D, $0A
-                        DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S SECTIONS"
+                        DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S/-/+  "
+                        DB          "AUTO:-H/+H"
                         DB          0
 MSG_HELP_SECTIONS:      DB          $0D, $0A
                         DB          "H A=ALL  H P=PROTECTION  H M=MEMORY  H S=ST"
-                        DB          "EERING", 0
-MSG_H_USAGE:            DB          $0D, $0A, "USAGE: H [A|P|M|S]", 0
+                        DB          "EERING  H -=AUTOHELP OFF  H +=AUTOHELP ON", 0
+MSG_H_USAGE:            DB          $0D, $0A
+                        DB          "USAGE: H [A|P|M|S|-|+]  OR  -H / +H", 0
+MSG_AUTOHELP_ALIAS_USAGE:
+                        DB          $0D, $0A, "USAGE: -H (OFF)  +H (ON)", 0
+MSG_H_AUTO_OFF:         DB          $0D, $0A, "AUTOHELP: OFF", 0
+MSG_H_AUTO_ON:          DB          $0D, $0A, "AUTOHELP: ON (NEXT PROMPT)", 0
 MSG_HELP_PROT_HDR:      DB          $0D, $0A, "HELP: PROTECTION", 0
 MSG_HELP_MEM_HDR:       DB          $0D, $0A, "HELP: MEMORY/TOOLS", 0
 MSG_HELP_STEER_HDR:     DB          $0D, $0A, "HELP: STEERING", 0
@@ -5946,8 +6063,8 @@ MSG_HELP_FULL_1:        DB          $0D, $0A, "  [HELP]"
 MSG_HELP_FULL_2:        DB          $0D, $0A, "  ?                SHORT HELP"
                         DB          0
 MSG_HELP_FULL_3:        DB          $0D, $0A
-                        DB          "  H [A|P|M|S]      INDEX / ALL / PROT / MEM"
-                        DB          " / STEER", 0
+                        DB          "  H [A|P|M|S|-|+]  INDEX / ALL / PROT / MEM"
+                        DB          " / STEER  (ALSO -H / +H)", 0
 MSG_HELP_FULL_4:        DB          $0D, $0A
                         DB          "  [CONTROL]"
                         DB          0

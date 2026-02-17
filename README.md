@@ -36,6 +36,8 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - `SRC/bso2.asm`: main monitor source
 - `SRC/macros.inc`: assembler macros
 - `SRC/Makefile`: build/upload/clean targets
+- `tools/bso2com/bso2com.c`: unified Linux GNU C serial utility
+- `tools/bso2com/Makefile`: build rules for `bso2com`
 - `DOCS/monitor_usage.html`: detailed command reference
 - `DOCS/monitor_usage.pdf`: printable/offline command reference
 
@@ -67,18 +69,75 @@ Clean:
 make -C SRC clean
 ```
 
-## Host Helper (L B)
+## Host Tool (`bso2com`)
 
-Use the included sender to stream a binary file for `L B ADDR LEN`:
+Use the unified Linux GNU C helper for terminal mode, `L B` loading, and flash protocol actions:
 
-```powershell
-python tools/send_lb.py payload.bin --port COM3 --addr 1000
+```bash
+make -C tools/bso2com
+tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
+tools/bso2com/bso2com lb-send payload.bin --addr 1000
+tools/bso2com/bso2com flash-check
+tools/bso2com/bso2com flash-clear --force --confirm ERASE
+```
+
+### Usage Examples (`bso2com`)
+
+```bash
+# 1) Build the host tool
+make -C tools/bso2com
+
+# 2) Serial terminal mode (quit with Ctrl-])
+tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
+
+# 3) Send raw payload to monitor L B path
+tools/bso2com/bso2com --port /dev/ttyUSB0 lb-send app.bin --addr 1000
+
+# 4) Flash maintenance commands
+tools/bso2com/bso2com --port /dev/ttyUSB0 flash-check
+tools/bso2com/bso2com --port /dev/ttyUSB0 flash-clear --force --confirm ERASE
+tools/bso2com/bso2com --port /dev/ttyUSB0 flash-write --addr 8000 --in app.bin --force --confirm WRITE
+tools/bso2com/bso2com --port /dev/ttyUSB0 flash-read --addr 8000 --len 0100 --out dump.bin
+tools/bso2com/bso2com --port /dev/ttyUSB0 flash-update-monitor --in monitor.bin --force --confirm UPDATE
 ```
 
 Requirements:
 
-- Python
-- `pyserial` (`pip install pyserial`)
+- Linux/Unix serial device (for example `/dev/ttyUSB0`)
+- GNU C toolchain (`gcc`, `make`)
+- POSIX userspace headers/libs (`termios`, `select`, `unistd`)
+
+Linux dependency examples:
+
+```bash
+# Debian/Ubuntu
+sudo apt-get install build-essential
+
+# Fedora
+sudo dnf install gcc make glibc-devel
+```
+
+### WSL2 Quick Start (`Ubuntu` on `Win11 Pro`)
+
+```powershell
+# Windows PowerShell (admin): attach USB serial adapter to WSL
+usbipd list
+usbipd bind --busid <BUSID>
+usbipd attach --wsl --busid <BUSID>
+```
+
+```bash
+# Ubuntu (WSL): verify device, build, run
+ls /dev/ttyUSB* /dev/ttyACM* /dev/ttyS* 2>/dev/null
+make -C tools/bso2com
+tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
+```
+
+If needed for permissions:
+
+```bash
+sudo usermod -aG dialout $USER
+```
 
 ## Monitor Commands
 
@@ -101,6 +160,28 @@ Requirements:
 - `Q` halt with `WAI` (resume via NMI/Reset)
 - `V` print vector chain information
 - `!<CMD> ...` force-enable protected low-RAM access for `F/M/C/A/N/L`
+
+### Usage Examples (`bso2` Monitor)
+
+```text
+# Basic memory workflow
+D 1000 10FF
+M 1000 A9 01 8D 00 20
+F 1100 11FF 00
+C 1000 10FF 1200
+
+# Load and run
+L B 1000 0200
+X 1000
+
+# Debug/resume flow
+N
+R
+
+# Utility
+V
+H A
+```
 
 Notes:
 - In monitor command mode, up-arrow (`ESC [ A`) repeats the previous command.
@@ -128,6 +209,7 @@ Notes:
 
 - This section captures planned architecture and upcoming work.
 - The project is intentionally experimental. Items may be reordered, replaced, or removed as implementation progresses.
+- Process note: current host/WSL2 hardening, ergonomics, and safety polish are tracked as TODO items for now because there is already running functional code.
 
 ### Command Model (Approved Direction)
 
@@ -201,6 +283,54 @@ Notes:
 - `B` is reserved for Bank/FLASH access.
 - FLASH flows should include read/program/erase/verify style operations under `B` subverbs.
 - FLASH operations are considered critical sections and must integrate with vector/NMI safety rules.
+- `bso2` will use `WDCMONv2` FLASH routines through wrappers/trampolines.
+- Integration intent is behavioral/protocol compatibility via wrapper entry points, not direct source copy/paste.
+
+### Flash / Bank Safety Policy (Critical, Non-Negotiable)
+
+- `B` must not execute dangerous operations by default.
+- Any `B` operation that mutates FLASH state or vector state requires both:
+- force prefix `!`
+- explicit user confirmation
+- Dangerous operations include at minimum: erase, program/write, monitor self-update, vector commit, and bank-activation/commit transitions.
+- If `!` is absent for a dangerous operation, the command must fail closed with no side effects.
+- Confirmation must be operation-specific (for example typed intent token), not a generic implicit continue.
+- During dangerous `B` operations:
+- enter critical guard mode before mutation starts
+- visibly indicate critical mode (all LEDs flashing)
+- guard/defer NMI debug flow until critical mode exits
+- On any verify/check failure, abort the operation, exit critical mode cleanly, and report explicit status.
+- Mandatory status reporting for dangerous `B` operations:
+- final status code byte
+- textual result (`OK`, `ABORTED`, `VERIFY_FAIL`, `FLASH_FAIL`, `DENIED`)
+
+### Board Self-Update Policy (FLASH/Monitor Update Path)
+
+- Board self-update is always treated as a dangerous operation.
+- Self-update requires `!` plus explicit confirmation before erase/program.
+- Self-update must present pre-commit details before confirmation:
+- target region
+- byte count
+- integrity value (checksum/hash) when available
+- Self-update flow should be staged and commit-oriented:
+- preflight validation
+- stage payload
+- erase/program
+- verify
+- commit/activate
+- Any update path must preserve a recovery strategy (do not rely on in-place blind overwrite as the only path).
+- Self-update path is in scope of the non-changing mandate:
+- any operation that mutates FLASH/vector state must assert critical indication/guard behavior
+- this includes module/transient load and activation flows
+
+### Host Tooling Direction (Linux GNU C)
+
+- Critical FLASH workflows are expected to have a Linux GNU C host path.
+- Python helper scripts may exist for convenience, but they are not the required path for critical FLASH operations.
+- Preferred host implementation model:
+- raw serial + protocol wrappers in C
+- explicit timeout/error handling
+- deterministic status reporting matching monitor status codes
 
 ### Memory Residency Policy (Working Contract)
 
@@ -242,6 +372,7 @@ Notes:
 - This project is independent and not affiliated with or endorsed by Western Design Center, Inc.
 - This repository does not redistribute WDC tool binaries or WDC ROM images.
 - Third-party references are listed in `THIRD_PARTY_NOTICES.md`.
+- `WDCMONv2` usage in this project is intended as wrapper/trampoline integration; any direct source reuse must be covered by upstream license/permission and documented in `THIRD_PARTY_NOTICES.md`.
 
 ## License
 
