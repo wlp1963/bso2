@@ -132,8 +132,6 @@ You should see:
 
 ## Reminder Placeholder: Search Hit vs Row Base
 
-This is not a formal story entry. It is a reminder wrapped in a small tale and anchored in truth.
-
 When `S` prints two addresses as `<HIT_ADDR> <ROW_BASE>:`, the first is the true match start and the second is only the aligned 16-byte dump row (`HIT_ADDR & $FFF0`).
 
 A match can begin at the last byte of one row and continue into the next row. Example:
