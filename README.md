@@ -69,11 +69,17 @@ Upload:
 make -C SRC upload
 ```
 
+- PuTTY users: uncheck `Auto wrap mode initially on` before interactive monitor use.
+
 Clean:
 
 ```powershell
 make -C SRC clean
 ```
+
+## Host Terminal Note (PuTTY)
+
+- In PuTTY, uncheck `Auto wrap mode initially on` for clean `bso2` output alignment.
 
 ## Monitor Commands
 
