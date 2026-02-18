@@ -23,7 +23,7 @@
 </head>
 <body>
   <h1>bso2 Monitor Reference</h1>
-  <div class="meta">Target: W65C02EDU | Source: <code>SRC/bso2.asm</code> | Generated: 2026-02-14</div>
+  <div class="meta">Target: W65C02EDU | Source: <code>SRC/bso2.asm</code> | Generated: 2026-02-18</div>
 
   <h2>0) Naming</h2>
   <p><code>bso2</code> is the preferred written form in this manual.</p>
@@ -109,6 +109,9 @@ M = enter monitor</p>
     <li>Terminal width byte is fixed/reserved at <code>$007A</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
     <li>Terminal-width prompt timeout byte is fixed/reserved at <code>$007B</code> (<code>TERM_WIDTH_TIMEOUT</code>): <code>00=wait forever</code>, <code>01-FF=seconds</code>, default <code>08</code>.</li>
     <li>User ZP range is reserved at <code>$0090-$00FF</code>.</li>
+    <li>User-program origin policy: avoid <code>$0000-$03FF</code> in normal operation (protected by default for write/execute-adjacent commands).</li>
+    <li>Minimum practical user-program origin is <code>$0800</code>.</li>
+    <li>Preferred default user-program origin is <code>$1000</code> (recommended for demos and monitor interoperability).</li>
   </ul>
 
   <h2>4) Verify / Error Outputs</h2>
@@ -266,6 +269,7 @@ DBG_TAG_BUF   6 bytes</p>
   <ul>
     <li>Before publish, provide both XMODEM receive and send paths.</li>
     <li>Preferred forms: <code>X R ...</code> and <code>X S ...</code> with fused aliases (<code>XR</code>, <code>XS</code>).</li>
+    <li>Planned loader workflow shortcut: <code>L G S</code> / <code>LGS</code> (load Motorola S-record stream, then auto-jump to the S7/S8/S9 start address).</li>
   </ul>
 
   <h3>9.6) Vector + Safety Direction (Pre-Publish Requirement)</h3>

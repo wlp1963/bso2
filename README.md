@@ -96,6 +96,12 @@ make -C SRC clean
 - Printable zero-page reference: `ZERO_PAGE_USAGE.pdf`
 - Warning: PDF artifacts may not always be regenerated; treat `DOCS/monitor_usage.html` and `ZERO_PAGE_USAGE.md` as canonical when there is any mismatch.
 
+## User Program ORG Policy
+
+- Protected low RAM: `$0000-$03FF` (blocked by default for `L/F/M/C/A/N`; use `!` only for intentional debug work).
+- Minimum practical userland origin: `$0800`.
+- Preferred default userland origin: `$1000` (recommended for demos and general monitor interoperability).
+
 ## Search Output Note
 
 - `S` hit lines print two addresses: `<HIT_ADDR> <ROW_BASE>: ...`.
@@ -132,7 +138,7 @@ make -C SRC clean
 
 - `Now`: keep pushing terminal/console I/O flow and add post-link check for `END_KDATA < $F000`.
 - `Soon`: get the ACIA port on the EDU board running.
-- `Before publish`: complete XMODEM send/receive and staged vector commit flow.
+- `Before publish`: complete XMODEM send/receive, add `L G S` / `LGS` load-go S-record workflow, and staged vector commit flow.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
 ## Legal
