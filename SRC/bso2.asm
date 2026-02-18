@@ -93,6 +93,7 @@ TERM_COLS_40            EQU         $28
 TERM_COLS_80            EQU         $50
 TERM_COLS_132           EQU         $84
 TERM_WIDTH_TIMEOUT_DFLT EQU         $08 ; SECONDS (0=WAIT FOREVER)
+RPN_STACK_DEPTH         EQU         8   ; I C CALCULATOR STACK DEPTH (16-BIT)
 
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
@@ -238,6 +239,13 @@ UNASM_SPAN:             DS          2   ; BYTE COUNT FOR REPEATED "U" (UDATA)
 UNASM_VALID:            DS          1   ; 1 IF UNASM_NEXT/UNASM_SPAN VALID
 F_PATTERN:              DS          F_MAX_BYTES
                                         ; FILL BYTE PATTERN (UP TO 16 BYTES)
+RPN_SP:                 DS          1   ; I C STACK DEPTH (0..RPN_STACK_DEPTH)
+RPN_TMP_L:              DS          2   ; I C LEFT OPERAND (16-BIT)
+RPN_TMP_R:              DS          2   ; I C RIGHT OPERAND (16-BIT)
+RPN_REM:                DS          2   ; I C DIVIDE REMAINDER (16-BIT)
+RPN_LAST_REM:           DS          2   ; I C LAST DIV REMAINDER (16-BIT)
+RPN_REM_VALID:          DS          1   ; 1 IF LAST TOKENIZED RESULT CAME FROM DIV
+RPN_STACK:              DS          RPN_STACK_DEPTH*2 ; I C VALUE STACK (LO/HI)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
 
                         CODE
@@ -411,7 +419,7 @@ MONITOR:                JSR         PRT_CRLF ; NEW LINE
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: SHOW_STARTUP_HELP_ONCE
-; DESCRIPTION: ON FIRST MONITOR ENTRY, EMIT "-H" THEN SHORT HELP
+; DESCRIPTION: ON FIRST MONITOR ENTRY, EMIT "-?" THEN SHORT HELP
 ; INPUT: SYS_FLAGS
 ; OUTPUT: STARTUP AUTO-HELP DISPLAYED AT MOST ONCE (UNTIL RE-ARMED)
 ; ----------------------------------------------------------------------------
@@ -424,7 +432,7 @@ SHOW_STARTUP_HELP_ONCE:
                         BEQ         ?SSHO_EXIT
                         LDA         #SYSF_H_AUTO_PEND_M
                         TRB         SYS_FLAGS
-                        LDA         #'H'
+                        LDA         #'?'
                         JSR         WRITE_BYTE
                         PRT_CSTRING MSG_HELP_BOOT_SHORT
                         JSR         PRT_CRLF
@@ -1244,8 +1252,8 @@ CMD_SAVE_LAST:
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
-; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), Q (WAIT),
-; V (VECTORS), H/? (HELP)
+; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), I C (RPN),
+; Q (WAIT), V (VECTORS), H/? (HELP)
 ; SEARCH TODAY:
 ;   - S B START END B0..B15 ; BYTE PATTERN SEARCH
 ;   - S C START END TEXT    ; ASCII TEXT SEARCH (REST OF LINE)
@@ -1784,6 +1792,513 @@ CMD_DO_GAME:
                         BRA         ?GD_ROUND
 ?GD_WIN:
                         PRT_CSTRING MSG_GAME_WIN
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_INFO
+; DESCRIPTION: INFO NAMESPACE ROOT
+; USAGE: I C <RPN TOKENS>   OR   IC <RPN TOKENS>
+; ----------------------------------------------------------------------------
+CMD_DO_INFO:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'C'
+                        BEQ         ?CID_CALC
+                        PRT_CSTRING MSG_I_USAGE
+                        RTS
+?CID_CALC:
+                        INX             ; PARSE AFTER SUBCOMMAND LETTER
+                        JSR         CMD_DO_INFO_CALC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_INFO_CALC
+; DESCRIPTION: 16-BIT HEX RPN CALCULATOR
+; TOKENS:
+;   - VALUES: 1..4 HEX DIGITS (OPTIONAL '$' PREFIX)
+;   - OPS: + - * / & | ^ ~
+; ----------------------------------------------------------------------------
+CMD_DO_INFO_CALC:
+                        STZ         RPN_SP
+                        STZ         RPN_REM_VALID
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CIC_LOOP
+                        PRT_CSTRING MSG_IC_USAGE
+                        RTS
+?CIC_LOOP:
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CIC_HAVE_TOK
+                        JMP         ?CIC_DONE
+?CIC_HAVE_TOK:
+                        CMP         #'+'
+                        BNE         ?CIC_CHK_SUB
+                        INX
+                        JSR         RPN_OP_ADD
+                        BCC         ?CIC_ADD_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_ADD_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_SUB:
+                        CMP         #'-'
+                        BNE         ?CIC_CHK_MUL
+                        INX
+                        JSR         RPN_OP_SUB
+                        BCC         ?CIC_SUB_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_SUB_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_MUL:
+                        CMP         #'*'
+                        BNE         ?CIC_CHK_DIV
+                        INX
+                        JSR         RPN_OP_MUL
+                        BCC         ?CIC_MUL_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_MUL_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_DIV:
+                        CMP         #'/'
+                        BNE         ?CIC_CHK_AND
+                        INX
+                        JSR         RPN_OP_DIV
+                        BCC         ?CIC_DIV_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_DIV_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_AND:
+                        CMP         #'&'
+                        BNE         ?CIC_CHK_OR
+                        INX
+                        JSR         RPN_OP_AND
+                        BCC         ?CIC_AND_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_AND_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_OR:
+                        CMP         #'|'
+                        BNE         ?CIC_CHK_XOR
+                        INX
+                        JSR         RPN_OP_OR
+                        BCC         ?CIC_OR_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_OR_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_XOR:
+                        CMP         #'^'
+                        BNE         ?CIC_CHK_NOT
+                        INX
+                        JSR         RPN_OP_XOR
+                        BCC         ?CIC_XOR_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_XOR_OK:
+                        JMP         ?CIC_LOOP
+?CIC_CHK_NOT:
+                        CMP         #'~'
+                        BNE         ?CIC_NUM_CHK
+                        INX
+                        JSR         RPN_OP_NOT
+                        BCC         ?CIC_NOT_OK
+                        JMP         ?CIC_ERR_FROM_A
+?CIC_NOT_OK:
+                        JMP         ?CIC_LOOP
+
+        ; NUMBER TOKEN: "$" PREFIX OR LEADING HEX DIGIT
+?CIC_NUM_CHK:
+                        CMP         #'$'
+                        BEQ         ?CIC_NUM
+                        JSR         HEX_TO_NIBBLE
+                        BCC         ?CIC_BADTOK
+?CIC_NUM:
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BNE         ?CIC_BADTOK
+                        STZ         RPN_REM_VALID ; NEW VALUE INVALIDATES LAST REM
+                        JSR         RPN_PUSH_PARSE
+                        BCS         ?CIC_OVERFLOW
+                        JMP         ?CIC_LOOP
+
+?CIC_DONE:
+                        JSR         RPN_PEEK_TOP_TO_PARSE
+                        BCS         ?CIC_EMPTY
+                        PRT_CSTRING MSG_IC_RESULT
+                        JSR         PRT_WORD_FROM_PARSE
+                        LDA         RPN_REM_VALID
+                        BEQ         ?CIC_DONE_RTS
+                        PRT_CSTRING MSG_IC_REM
+                        LDA         RPN_LAST_REM+1
+                        LDX         RPN_LAST_REM
+                        JSR         PRT_HEX_WORD_AX
+?CIC_DONE_RTS:
+                        RTS
+
+?CIC_ERR_FROM_A:
+                        CMP         #$01
+                        BEQ         ?CIC_UNDERFLOW
+                        CMP         #$02
+                        BEQ         ?CIC_OVERFLOW
+                        CMP         #$03
+                        BEQ         ?CIC_DIV0
+                        BRA         ?CIC_BADTOK
+?CIC_BADTOK:
+                        PRT_CSTRING MSG_IC_BADTOK
+                        RTS
+?CIC_UNDERFLOW:
+                        PRT_CSTRING MSG_IC_UNDERFLOW
+                        RTS
+?CIC_OVERFLOW:
+                        PRT_CSTRING MSG_IC_OVERFLOW
+                        RTS
+?CIC_DIV0:
+                        PRT_CSTRING MSG_IC_DIV0
+                        RTS
+?CIC_EMPTY:
+                        PRT_CSTRING MSG_IC_EMPTY
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_OP_ADD/SUB/MUL/DIV/AND/OR/XOR/NOT
+; DESCRIPTION: EXECUTES ONE RPN OPERATION
+; OUTPUT: C=0 OK
+;         C=1 ERROR, A=1 UNDERFLOW, A=2 OVERFLOW, A=3 DIV0
+; ----------------------------------------------------------------------------
+RPN_OP_ADD:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPA_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPA_POP_OK:
+                        CLC
+                        LDA         RPN_TMP_L
+                        ADC         RPN_TMP_R
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        ADC         RPN_TMP_R+1
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPA_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPA_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_SUB:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPS_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPS_POP_OK:
+                        SEC
+                        LDA         RPN_TMP_L
+                        SBC         RPN_TMP_R
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        SBC         RPN_TMP_R+1
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPS_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPS_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_MUL:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPM_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPM_POP_OK:
+                        PHX             ; PRESERVE CMD_LINE TOKEN INDEX
+                        JSR         RPN_MUL_16
+                        PLX
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPM_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPM_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_DIV:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPD_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPD_POP_OK:
+                        LDA         RPN_TMP_R
+                        ORA         RPN_TMP_R+1
+                        BNE         ?ROPD_DIVNZ
+                        JMP         RPN_OP_ERR_DIV0
+?ROPD_DIVNZ:
+                        PHX             ; PRESERVE CMD_LINE TOKEN INDEX
+                        JSR         RPN_DIV_16
+                        PLX
+                        LDA         RPN_REM
+                        STA         RPN_LAST_REM
+                        LDA         RPN_REM+1
+                        STA         RPN_LAST_REM+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPD_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPD_PUSH_OK:
+                        LDA         #$01
+                        STA         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_AND:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPA2_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPA2_POP_OK:
+                        LDA         RPN_TMP_L
+                        AND         RPN_TMP_R
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        AND         RPN_TMP_R+1
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPA2_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPA2_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_OR:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPO_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPO_POP_OK:
+                        LDA         RPN_TMP_L
+                        ORA         RPN_TMP_R
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        ORA         RPN_TMP_R+1
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPO_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPO_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_XOR:
+                        JSR         RPN_POP2_TO_TMP
+                        BCC         ?ROPX_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPX_POP_OK:
+                        LDA         RPN_TMP_L
+                        EOR         RPN_TMP_R
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        EOR         RPN_TMP_R+1
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPX_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPX_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_NOT:
+                        JSR         RPN_POP_TO_PARSE
+                        BCC         ?ROPN_POP_OK
+                        JMP         RPN_OP_ERR_UNDER
+?ROPN_POP_OK:
+                        LDA         CMD_PARSE_VAL
+                        EOR         #$FF
+                        STA         CMD_PARSE_VAL
+                        LDA         CMD_PARSE_VAL+1
+                        EOR         #$FF
+                        STA         CMD_PARSE_VAL+1
+                        JSR         RPN_PUSH_PARSE
+                        BCC         ?ROPN_PUSH_OK
+                        JMP         RPN_OP_ERR_OVER
+?ROPN_PUSH_OK:
+                        STZ         RPN_REM_VALID
+                        CLC
+                        RTS
+
+RPN_OP_ERR_UNDER:
+                        LDA         #$01
+                        SEC
+                        RTS
+RPN_OP_ERR_OVER:
+                        LDA         #$02
+                        SEC
+                        RTS
+RPN_OP_ERR_DIV0:
+                        LDA         #$03
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_PUSH_PARSE
+; DESCRIPTION: PUSHES CMD_PARSE_VAL (16-BIT) ONTO RPN STACK
+; OUTPUT: C=0 OK, C=1 OVERFLOW
+; ----------------------------------------------------------------------------
+RPN_PUSH_PARSE:
+                        LDA         RPN_SP
+                        CMP         #RPN_STACK_DEPTH
+                        BCS         ?RPS_OVER
+                        ASL         A
+                        TAY
+                        LDA         CMD_PARSE_VAL
+                        STA         RPN_STACK,Y
+                        LDA         CMD_PARSE_VAL+1
+                        STA         RPN_STACK+1,Y
+                        INC         RPN_SP
+                        CLC
+                        RTS
+?RPS_OVER:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_POP_TO_PARSE
+; DESCRIPTION: POPS TOP RPN VALUE INTO CMD_PARSE_VAL (16-BIT)
+; OUTPUT: C=0 OK, C=1 UNDERFLOW
+; ----------------------------------------------------------------------------
+RPN_POP_TO_PARSE:
+                        LDA         RPN_SP
+                        BEQ         ?RP2_UNDER
+                        DEC         RPN_SP
+                        LDA         RPN_SP
+                        ASL         A
+                        TAY
+                        LDA         RPN_STACK,Y
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_STACK+1,Y
+                        STA         CMD_PARSE_VAL+1
+                        CLC
+                        RTS
+?RP2_UNDER:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_POP2_TO_TMP
+; DESCRIPTION: POPS RIGHT THEN LEFT OPERAND INTO RPN_TMP_R / RPN_TMP_L
+; OUTPUT: C=0 OK, C=1 UNDERFLOW
+; ----------------------------------------------------------------------------
+RPN_POP2_TO_TMP:
+                        JSR         RPN_POP_TO_PARSE
+                        BCS         ?RP22_UNDER
+                        LDA         CMD_PARSE_VAL
+                        STA         RPN_TMP_R
+                        LDA         CMD_PARSE_VAL+1
+                        STA         RPN_TMP_R+1
+                        JSR         RPN_POP_TO_PARSE
+                        BCS         ?RP22_UNDER
+                        LDA         CMD_PARSE_VAL
+                        STA         RPN_TMP_L
+                        LDA         CMD_PARSE_VAL+1
+                        STA         RPN_TMP_L+1
+                        CLC
+                        RTS
+?RP22_UNDER:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_PEEK_TOP_TO_PARSE
+; DESCRIPTION: COPIES TOP RPN VALUE TO CMD_PARSE_VAL WITHOUT POPPING
+; OUTPUT: C=0 OK, C=1 EMPTY STACK
+; ----------------------------------------------------------------------------
+RPN_PEEK_TOP_TO_PARSE:
+                        LDA         RPN_SP
+                        BEQ         ?RPK_EMPTY
+                        SEC
+                        SBC         #$01
+                        ASL         A
+                        TAY
+                        LDA         RPN_STACK,Y
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_STACK+1,Y
+                        STA         CMD_PARSE_VAL+1
+                        CLC
+                        RTS
+?RPK_EMPTY:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_MUL_16
+; DESCRIPTION: 16-BIT UNSIGNED MULTIPLY (LOW 16-BIT PRODUCT)
+; INPUT: RPN_TMP_L * RPN_TMP_R
+; OUTPUT: CMD_PARSE_VAL = PRODUCT (MOD 65536)
+; ----------------------------------------------------------------------------
+RPN_MUL_16:
+                        STZ         CMD_PARSE_VAL
+                        STZ         CMD_PARSE_VAL+1
+                        LDX         #$10
+?RM16_LOOP:
+                        LDA         RPN_TMP_R+1
+                        LSR         A
+                        STA         RPN_TMP_R+1
+                        LDA         RPN_TMP_R
+                        ROR         A
+                        STA         RPN_TMP_R
+                        BCC         ?RM16_NOADD
+                        CLC
+                        LDA         CMD_PARSE_VAL
+                        ADC         RPN_TMP_L
+                        STA         CMD_PARSE_VAL
+                        LDA         CMD_PARSE_VAL+1
+                        ADC         RPN_TMP_L+1
+                        STA         CMD_PARSE_VAL+1
+?RM16_NOADD:
+                        ASL         RPN_TMP_L
+                        ROL         RPN_TMP_L+1
+                        DEX
+                        BNE         ?RM16_LOOP
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RPN_DIV_16
+; DESCRIPTION: 16-BIT UNSIGNED DIVIDE
+; INPUT: RPN_TMP_L / RPN_TMP_R (DIVISOR MUST BE NONZERO)
+; OUTPUT: CMD_PARSE_VAL = QUOTIENT, RPN_REM = REMAINDER
+; ----------------------------------------------------------------------------
+RPN_DIV_16:
+                        LDA         RPN_TMP_L
+                        STA         CMD_PARSE_VAL
+                        LDA         RPN_TMP_L+1
+                        STA         CMD_PARSE_VAL+1
+                        STZ         RPN_REM
+                        STZ         RPN_REM+1
+                        LDX         #$10
+?RD16_LOOP:
+                        ASL         CMD_PARSE_VAL
+                        ROL         CMD_PARSE_VAL+1
+                        ROL         RPN_REM
+                        ROL         RPN_REM+1
+                        SEC
+                        LDA         RPN_REM
+                        SBC         RPN_TMP_R
+                        STA         RPN_REM
+                        LDA         RPN_REM+1
+                        SBC         RPN_TMP_R+1
+                        STA         RPN_REM+1
+                        BCC         ?RD16_RESTORE
+                        LDA         CMD_PARSE_VAL
+                        ORA         #$01
+                        STA         CMD_PARSE_VAL
+                        BRA         ?RD16_NEXT
+?RD16_RESTORE:
+                        CLC
+                        LDA         RPN_REM
+                        ADC         RPN_TMP_R
+                        STA         RPN_REM
+                        LDA         RPN_REM+1
+                        ADC         RPN_TMP_R+1
+                        STA         RPN_REM+1
+?RD16_NEXT:
+                        DEX
+                        BNE         ?RD16_LOOP
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2497,6 +3012,8 @@ CMD_TABLE:
                         DW          CMD_DO_GO
                         DB          'G'
                         DW          CMD_DO_GAME
+                        DB          'I'
+                        DW          CMD_DO_INFO
                         DB          'R'
                         DW          CMD_DO_RESUME
                         DB          'N'
@@ -2578,6 +3095,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_10
                         PRT_CSTRING MSG_HELP_FULL_11
                         PRT_CSTRING MSG_HELP_FULL_28
+                        PRT_CSTRING MSG_HELP_FULL_37
                         PRT_CSTRING MSG_HELP_FULL_12
                         PRT_CSTRING MSG_HELP_FULL_13
                         PRT_CSTRING MSG_HELP_FULL_14
@@ -5293,9 +5811,8 @@ DEBUG_PRINT_CONTEXT:
                         LDA         #':'
                         JSR         WRITE_BYTE
                         LDA         DBG_PC_HI
-                        JSR         PRT_HEX
-                        LDA         DBG_PC_LO
-                        JSR         PRT_HEX
+                        LDX         DBG_PC_LO
+                        JSR         PRT_HEX_WORD_AX
                         JSR         PRT_SPACE
 
                         JSR         PRT_A
@@ -6392,32 +6909,28 @@ SHOW_VECTORS:
                         LDA         #'['
                         JSR         WRITE_BYTE
                         LDA         #>ZP_BRK_HOOK_ADDR
-                        JSR         PRT_HEX
-                        LDA         #<ZP_BRK_HOOK_ADDR
-                        JSR         PRT_HEX
+                        LDX         #<ZP_BRK_HOOK_ADDR
+                        JSR         PRT_HEX_WORD_AX
                         LDA         #']'
                         JSR         WRITE_BYTE
                         PRT_CSTRING STR_ARROW
                         LDA         BRK_HOOK+2
-                        JSR         PRT_HEX
-                        LDA         BRK_HOOK+1
-                        JSR         PRT_HEX
+                        LDX         BRK_HOOK+1
+                        JSR         PRT_HEX_WORD_AX
                         PRT_CSTRING STR_IRQ_BRK_NAME
                         JSR         PRT_CRLF
                         PRT_CSTRING STR_IRQ_HW
                         LDA         #'['
                         JSR         WRITE_BYTE
                         LDA         #>ZP_HW_HOOK_ADDR
-                        JSR         PRT_HEX
-                        LDA         #<ZP_HW_HOOK_ADDR
-                        JSR         PRT_HEX
+                        LDX         #<ZP_HW_HOOK_ADDR
+                        JSR         PRT_HEX_WORD_AX
                         LDA         #']'
                         JSR         WRITE_BYTE
                         PRT_CSTRING STR_ARROW
                         LDA         HW_HOOK+2
-                        JSR         PRT_HEX
-                        LDA         HW_HOOK+1
-                        JSR         PRT_HEX
+                        LDX         HW_HOOK+1
+                        JSR         PRT_HEX_WORD_AX
                         PRT_CSTRING STR_IRQ_HW_NAME
                         JSR         PRT_CRLF
                         RTS
@@ -6637,6 +7150,34 @@ PRT_HEX:
                         RTS             ; DONE
 
 ; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_HEX_WORD_AX
+; DESCRIPTION: PRINTS 16-BIT WORD IN HEX (HIGH BYTE THEN LOW BYTE)
+; INPUT: A = HIGH BYTE, X = LOW BYTE
+; OUTPUT: NONE
+; FLAGS: UNCHANGED
+; ----------------------------------------------------------------------------
+PRT_HEX_WORD_AX:
+                        PUSH        X
+                        JSR         PRT_HEX
+                        PULL        X
+                        TXA
+                        JSR         PRT_HEX
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_WORD_FROM_PARSE
+; DESCRIPTION: PRINTS CMD_PARSE_VAL AS 16-BIT HEX (HI THEN LO)
+; INPUT: CMD_PARSE_VAL/CMD_PARSE_VAL+1
+; OUTPUT: NONE
+; FLAGS: UNCHANGED
+; ----------------------------------------------------------------------------
+PRT_WORD_FROM_PARSE:
+                        LDA         CMD_PARSE_VAL+1
+                        LDX         CMD_PARSE_VAL
+                        JSR         PRT_HEX_WORD_AX
+                        RTS
+
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: PRT_C_STRING
 ; DESCRIPTION: PRINTS NULL-TERMINATED STRING
 ; INPUT: STR_PTR (ZP) = ADDR OF STRING
@@ -6828,6 +7369,9 @@ MSG_HELP_FULL_11:       DB          $0D, $0A
 MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
+MSG_HELP_FULL_37:       DB          $0D, $0A
+                        DB          "  I C EXPR         RPN CALC (16-BIT HEX) "
+                        DB          "TOKENS", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
                         DB          "  [MEMORY]          ***E IS INCLUSIVE***  *"
                         DB          "**ENTER HEX PAIR FOR BYTE***"
@@ -6924,6 +7468,17 @@ MSG_A_USAGE:            DB          $0D, $0A
 MSG_A_RANGE_ERR:        DB          $0D, $0A
                         DB          "A BRANCH RANGE ERROR", 0
 MSG_G_USAGE:            DB          $0D, $0A, "USAGE: X START", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I C <RPN>", 0
+MSG_IC_USAGE:           DB          $0D, $0A
+                        DB          "USAGE: I C T0 [T1 ...]  TOKENS: HEX,+,-,*,/"
+                        DB          ",&,|,^,~", 0
+MSG_IC_BADTOK:          DB          $0D, $0A, "I C BAD TOKEN", 0
+MSG_IC_UNDERFLOW:       DB          $0D, $0A, "I C STACK UNDERFLOW", 0
+MSG_IC_OVERFLOW:        DB          $0D, $0A, "I C STACK OVERFLOW", 0
+MSG_IC_DIV0:            DB          $0D, $0A, "I C DIVIDE BY ZERO", 0
+MSG_IC_EMPTY:           DB          $0D, $0A, "I C EMPTY", 0
+MSG_IC_RESULT:          DB          $0D, $0A, "I C = $", 0
+MSG_IC_REM:             DB          "  REM = $", 0
 MSG_R_USAGE:            DB          $0D, $0A
                         DB          "USAGE: R [A=HH] [X=HH] [Y=HH]", 0
 MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
