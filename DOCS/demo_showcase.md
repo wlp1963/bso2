@@ -8,6 +8,16 @@ Related focused search transcript:
 
 Homage: this demo honors your Ohio Scientific `C1P`, later expanded into a `C2P` with disk and `bso2` startup.
 
+## Hello World S28 Milestone
+
+**Milestone timestamp:** `2026-02-18T14:40:00-06:00`  
+**Verification capture:** [DOCS/hello-world.txt](./hello-world.txt)
+
+Highlights from the verification capture:
+- `L S READY - SEND S-RECORDS (ABORT WITH SX)`
+- `L S LOAD COMPLETE`
+- `HELLO, WORLD`
+
 ```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=
 

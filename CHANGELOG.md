@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased] - 2026-02-18
 
 ### Added
+- Added independently assembled Hello World demo artifacts (`SRC/hello-world.asm`, `SRC/hello-world.s28`) and verification transcript (`DOCS/hello-world.txt`) for S28 load-and-run flow.
 - Added boot decision truth-table documentation for power-on and reset startup paths.
 - Added patchable IRQ sub-dispatch trampolines:
   - `BRK_HOOK` at `$0089-$008B`

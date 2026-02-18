@@ -34,6 +34,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - If you build something useful from this project, I'd love to hear about it and follow your work.
 - The only constant is that nothing is safe from change.
 - "Perfect is the enemy of good." - Voltaire
+- Milestone: independently assembled 65C02 program loaded via S28 and executed on W65C02EDU at `2026-02-18T14:40:00-06:00`; validation output: `HELLO, WORLD`.
 - Milestone: David Gray (WDC) invited to this repository at `2026-02-17T14:21:00-06:00`.
 - Milestone: historical RLE design-note rationale documented at `2026-02-16T00:45:50-06:00`.
 
@@ -41,6 +42,9 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 
 - `SRC/bso2.asm`: main monitor source
 - `SRC/macros.inc`: assembler macros
+- `SRC/hello-world.asm`: standalone Hello World demo source
+- `SRC/hello-world.s28`: generated Motorola S-record payload for Hello World demo
+- `DOCS/hello-world.txt`: captured terminal transcript proving S28 load + execution
 - `SRC/Makefile`: build/upload/clean targets
 - `DOCS/monitor_usage.html`: detailed command reference
 - `DOCS/monitor_usage.pdf`: printable/offline command reference
@@ -102,9 +106,12 @@ make -C SRC clean
 ## Demo Showcase
 
 - **Curated demo walkthrough:** [DOCS/demo_showcase.md](DOCS/demo_showcase.md)
-- Raw terminal capture: [bso2 demo.log](./bso2%20demo.log)
+- Raw terminal capture: [bso2 demo.log](DOCS/bso2%20demo.log)
 - Focused `S` command demo (clean): [DOCS/bso2 S demo.txt](DOCS/bso2%20S%20demo.txt)
 - Focused `S` command capture (raw): [DOCS/bso2 S demo.log](DOCS/bso2%20S%20demo.log)
+- Hello World S28 demo transcript: [DOCS/hello-world.txt](DOCS/hello-world.txt)
+- Hello World source: [SRC/hello-world.asm](SRC/hello-world.asm)
+- Hello World S-record payload: [SRC/hello-world.s28](SRC/hello-world.s28)
 
 ## Development
 
