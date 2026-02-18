@@ -13,6 +13,10 @@ upload:
 	python "C:\Program Files\wdc\Tools\bin\wdc_interface.py" -dCOM3 bso2.bin -m write -k -x -t
 	del /f *.bin *.obj *.lst *.sym *.map
 
+hello:
+	wdc02as -g -l -s hello-world.asm
+	WDCLN -g -sz -t -HM28 -PFF -J -Q hello-world
+
 clean:
 	del /f *.obj *.lst *.sym *.map
 	
