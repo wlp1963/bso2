@@ -125,6 +125,7 @@ DUMP_NEXT:              DS          2   ; NEXT START ADDR FOR "D"
 DUMP_SPAN:              DS          2   ; BYTE COUNT FOR REPEATED "D"
 DUMP_VALID:             DS          1   ; 1 IF DUMP_NEXT/DUMP_SPAN VALID
 MEM_DUMP_CNT:           DS          1   ; BYTES TO PRINT ON CURRENT DUMP LINE
+SEARCH_FOUND:           DS          1   ; 1 IF CURRENT S COMMAND FOUND A MATCH
 DIS_OPCODE:             DS          1   ; CURRENT OPCODE FOR U DISASSEMBLER
 DIS_MODE:               DS          1   ; CURRENT ADDRESSING MODE FOR U
 DIS_LEN:                DS          1   ; CURRENT INSTRUCTION LENGTH FOR U
@@ -969,20 +970,14 @@ CMD_SAVE_LAST:
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
 ; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
-; N (NEXT), F (FILL), L S / L B (SERIAL LOAD), P (RESERVED: PUT), Q (WAIT), V
-; (VECTORS), H/? (HELP)
-; TODO (PLANNED SEARCH COMMAND FAMILY):
-;   - S C START END <TEXT>  ; C-STRING STYLE TEXT SEARCH MODE
-;   - S B START END <PAT...>; BINARY SEARCH MODE (BYTES/WORDS/WILDCARDS)
-;   - MAINLINE PARSER PLAN: KEEP SINGLE-LETTER CMD_TABLE DISPATCH; ADD SHARED
-;     TOKENIZER/QUOTED-ARG PARSING FOR SUBCOMMANDS (L S/L B/S C/S B STYLE).
-;   - POSSIBLE FORK (FUTURE): FULL STRING-DRIVEN COMMAND PARSER WITH
-;     MULTI-CHAR COMMAND VERBS/GRAMMAR IN PLACE OF SINGLE-LETTER DISPATCH.
-;   - FUTURE ONLY: S P (PASCAL LENGTH-PREFIXED STRINGS), S H (HIGH-BIT ASCII)
-;   - S C PARSE RULES: UNQUOTED STOPS AT SPACE; QUOTES CAN BE " ' ` ; ESCAPE
-;     EMBEDDED DELIMITER BY DOUBLING IT.
-;   - S B PARSE RULES: BYTE HH, WORD HHHH (LITTLE-ENDIAN MATCH), NIBBLE TOKEN
-;     HL WITH ? WILDCARD NIBBLE, AND * AS SINGLE-BYTE WILDCARD.
+; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), Q (WAIT),
+; V (VECTORS), H/? (HELP)
+; SEARCH TODAY:
+;   - S B START END B0..B15 ; BYTE PATTERN SEARCH
+;   - S C START END TEXT    ; ASCII TEXT SEARCH (REST OF LINE)
+; SEARCH FUTURE:
+;   - QUOTED/ESCAPED TEXT TOKENS
+;   - WILDCARDS / WORD TOKENS
 ;   - GAME IDEAS (FUTURE): MASTERMIND, CONWAY'S LIFE, TIC-TAC-TOE.
 ; PREFIX: ! FORCES LOW-RAM ACCESS FOR PROTECTED COMMANDS (F/M/C/A/N/L)
 ; ----------------------------------------------------------------------------
@@ -2236,6 +2231,8 @@ CMD_TABLE:
                         DW          CMD_DO_FILL
                         DB          'L'
                         DW          CMD_DO_LOAD
+                        DB          'S'
+                        DW          CMD_DO_SEARCH
                         DB          'Q'
                         DW          CMD_DO_QUIT_MONITOR
                         DB          'V'
@@ -3680,6 +3677,247 @@ CMD_DO_FILL:
                         RTS
 
 ?FD_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_SEARCH
+; DESCRIPTION: SEARCHES MEMORY BY BYTE PATTERN OR ASCII TEXT
+; USAGE:
+;   S B <START> <END> <B0..B15>
+;   S C <START> <END> <TEXT>
+; NOTES:
+;   - END IS INCLUSIVE.
+;   - S C TREATS REST-OF-LINE AS LITERAL TEXT (NO QUOTE ESCAPING YET).
+; ----------------------------------------------------------------------------
+CMD_DO_SEARCH:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'B'
+                        BEQ         ?SD_PARSE_B
+                        CMP         #'C'
+                        BEQ         ?SD_PARSE_C
+                        BRA         ?SD_USAGE
+
+?SD_PARSE_B:
+                        INX
+                        JSR         SEARCH_PARSE_RANGE
+                        BCS         ?SD_USAGE
+                        STZ         F_COUNT
+?SD_B_LOOP:
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?SD_B_DONE
+                        LDA         F_COUNT
+                        CMP         #F_MAX_BYTES
+                        BCS         ?SD_USAGE
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BNE         ?SD_USAGE
+                        LDA         CMD_PARSE_VAL+1 ; BYTE TOKENS ONLY
+                        BNE         ?SD_USAGE
+                        LDY         F_COUNT
+                        LDA         CMD_PARSE_VAL
+                        STA         F_PATTERN,Y
+                        INC         F_COUNT
+                        BRA         ?SD_B_LOOP
+?SD_B_DONE:
+                        LDA         F_COUNT
+                        BNE         ?SD_RUN
+                        BRA         ?SD_USAGE
+
+?SD_PARSE_C:
+                        INX
+                        JSR         SEARCH_PARSE_RANGE
+                        BCS         ?SD_USAGE
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?SD_USAGE
+                        STZ         F_COUNT
+?SD_C_LOOP:
+                        LDA         CMD_LINE,X
+                        BEQ         ?SD_C_DONE
+                        LDY         F_COUNT
+                        CPY         #F_MAX_BYTES
+                        BCS         ?SD_USAGE
+                        STA         F_PATTERN,Y
+                        INC         F_COUNT
+                        INX
+                        BRA         ?SD_C_LOOP
+?SD_C_DONE:
+
+?SD_RUN:
+                        JSR         SEARCH_RUN
+                        RTS
+
+?SD_USAGE:
+                        PRT_CSTRING MSG_S_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SEARCH_PARSE_RANGE
+; DESCRIPTION: PARSES "START END" INTO SEARCH CURSOR/LIMIT POINTERS
+; INPUT: X = INDEX AFTER S <MODE>
+; OUTPUT: PTR_DUMP_CUR = START (INCLUSIVE), PTR_DUMP_END = END (EXCLUSIVE)
+;         C=0 OK, C=1 ERROR
+; ----------------------------------------------------------------------------
+SEARCH_PARSE_RANGE:
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BEQ         ?SPR_START_OK
+                        SEC
+                        RTS
+?SPR_START_OK:
+                        LDA         CMD_PARSE_VAL
+                        STA         PTR_DUMP_CUR
+                        LDA         CMD_PARSE_VAL+1
+                        STA         PTR_DUMP_CUR+1
+
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BEQ         ?SPR_END_OK
+                        SEC
+                        RTS
+?SPR_END_OK:
+        ; END MUST BE >= START
+                        LDA         CMD_PARSE_VAL+1
+                        CMP         PTR_DUMP_CUR+1
+                        BCC         ?SPR_RANGE_ERR
+                        BNE         ?SPR_END_GE_START
+                        LDA         CMD_PARSE_VAL
+                        CMP         PTR_DUMP_CUR
+                        BCC         ?SPR_RANGE_ERR
+?SPR_END_GE_START:
+        ; CONVERT INCLUSIVE END TO EXCLUSIVE END
+                        LDA         CMD_PARSE_VAL
+                        CLC
+                        ADC         #$01
+                        STA         PTR_DUMP_END
+                        LDA         CMD_PARSE_VAL+1
+                        ADC         #$00
+                        STA         PTR_DUMP_END+1
+                        CLC
+                        RTS
+
+?SPR_RANGE_ERR:
+                        PRT_CSTRING MSG_S_RANGE_ERR
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SEARCH_RUN
+; DESCRIPTION: RUNS PATTERN SEARCH OVER [PTR_DUMP_CUR .. PTR_DUMP_END)
+; INPUT: PTR_DUMP_CUR, PTR_DUMP_END, F_COUNT, F_PATTERN
+; OUTPUT: PRINTS EACH HIT ADDRESS; PRINTS "S NO MATCH" IF NONE
+; ----------------------------------------------------------------------------
+SEARCH_RUN:
+                        STZ         SEARCH_FOUND
+?SR_LOOP:
+                        JSR         SEARCH_HAS_ROOM
+                        BCS         ?SR_DONE_SCAN
+                        JSR         SEARCH_MATCH_AT_CUR
+                        BCC         ?SR_NEXT
+                        JSR         SEARCH_PRINT_HIT
+                        LDA         #$01
+                        STA         SEARCH_FOUND
+?SR_NEXT:
+                        INC         PTR_DUMP_CUR
+                        BNE         ?SR_LOOP
+                        INC         PTR_DUMP_CUR+1
+                        BRA         ?SR_LOOP
+?SR_DONE_SCAN:
+                        LDA         SEARCH_FOUND
+                        BNE         ?SR_DONE
+                        PRT_CSTRING MSG_S_NOT_FOUND
+?SR_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SEARCH_HAS_ROOM
+; DESCRIPTION: C=0 IF PATTERN FITS AT CURRENT CURSOR, C=1 IF SCAN COMPLETE
+; INPUT: PTR_DUMP_CUR, PTR_DUMP_END, F_COUNT
+; ----------------------------------------------------------------------------
+SEARCH_HAS_ROOM:
+                        LDA         PTR_DUMP_END
+                        ORA         PTR_DUMP_END+1
+                        BEQ         ?SHR_SENTINEL_END
+
+                        CLC
+                        LDA         PTR_DUMP_CUR
+                        ADC         F_COUNT
+                        STA         PTR_TEMP
+                        LDA         PTR_DUMP_CUR+1
+                        ADC         #$00
+                        STA         PTR_TEMP+1
+                        BCS         ?SHR_NO_ROOM
+
+                        LDA         PTR_TEMP+1
+                        CMP         PTR_DUMP_END+1
+                        BCC         ?SHR_ROOM
+                        BNE         ?SHR_NO_ROOM
+                        LDA         PTR_TEMP
+                        CMP         PTR_DUMP_END
+                        BCC         ?SHR_ROOM
+                        BEQ         ?SHR_ROOM
+                        BRA         ?SHR_NO_ROOM
+
+?SHR_SENTINEL_END:
+        ; END=$0000 MEANS EXCLUSIVE $10000; CARRY=1 IS ONLY VALID IF SUM==0000.
+                        CLC
+                        LDA         PTR_DUMP_CUR
+                        ADC         F_COUNT
+                        STA         PTR_TEMP
+                        LDA         PTR_DUMP_CUR+1
+                        ADC         #$00
+                        STA         PTR_TEMP+1
+                        BCC         ?SHR_ROOM
+                        LDA         PTR_TEMP
+                        ORA         PTR_TEMP+1
+                        BEQ         ?SHR_ROOM
+
+?SHR_NO_ROOM:
+                        SEC
+                        RTS
+?SHR_ROOM:
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SEARCH_MATCH_AT_CUR
+; DESCRIPTION: COMPARES F_PATTERN TO MEMORY AT PTR_DUMP_CUR
+; OUTPUT: C=1 MATCH, C=0 MISMATCH
+; ----------------------------------------------------------------------------
+SEARCH_MATCH_AT_CUR:
+                        LDA         PTR_DUMP_CUR
+                        STA         PTR_TEMP
+                        LDA         PTR_DUMP_CUR+1
+                        STA         PTR_TEMP+1
+                        LDY         #$00
+?SMC_LOOP:
+                        CPY         F_COUNT
+                        BEQ         ?SMC_MATCH
+                        LDA         (PTR_TEMP),Y
+                        CMP         F_PATTERN,Y
+                        BNE         ?SMC_MISS
+                        INY
+                        BRA         ?SMC_LOOP
+?SMC_MATCH:
+                        SEC
+                        RTS
+?SMC_MISS:
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: SEARCH_PRINT_HIT
+; DESCRIPTION: PRINTS MATCH ADDRESS
+; ----------------------------------------------------------------------------
+SEARCH_PRINT_HIT:
+                        PRT_CSTRING MSG_S_HIT
+                        LDA         PTR_DUMP_CUR+1
+                        JSR         PRT_HEX
+                        LDA         PTR_DUMP_CUR
+                        JSR         PRT_HEX
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -6092,10 +6330,10 @@ MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
                         DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0
 MSG_HELP_BOOT_SHORT:    DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
-                        DB          "D F L M P U V", 0
+                        DB          "D F L M S U V", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
                         DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
-                        DB          "D F L M P U V", 0
+                        DB          "D F L M S U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S/-/+  "
                         DB          "AUTO:-H/+H"
@@ -6181,8 +6419,7 @@ MSG_HELP_FULL_27:       DB          $0D, $0A
                         DB          "  L B A L          LOAD RAW BYTES TO ADDR/"
                         DB          "LEN (NO CRC)", 0
 MSG_HELP_FULL_29:       DB          $0D, $0A
-                        DB          "  P                RESERVED / DEPRECATED ("
-                        DB          "USE I O P)", 0
+                        DB          "  S B/C S E ...    SEARCH (BYTE/TEXT)", 0
 MSG_HELP_FULL_21:       DB          $0D, $0A
                         DB          "  U [S E]          DISASSEMBLE 65C02 RANGE"
                         DB          0
@@ -6267,6 +6504,12 @@ MSG_GAME_HIGH:          DB          $0D, $0A, "TOO HIGH", 0
 MSG_GAME_WIN:           DB          $0D, $0A, "CORRECT", 0
 MSG_GAME_LOSE:          DB          $0D, $0A, "OUT OF CHANCES. NUMBER WAS ", 0
 MSG_F_USAGE:            DB          $0D, $0A, "USAGE: F START END B0..B15", 0
+MSG_S_USAGE:            DB          $0D, $0A
+                        DB          "USAGE: S B START END B0..B15 | S C START "
+                        DB          "END TEXT", 0
+MSG_S_RANGE_ERR:        DB          $0D, $0A, "S RANGE ERROR", 0
+MSG_S_NOT_FOUND:        DB          $0D, $0A, "S NO MATCH", 0
+MSG_S_HIT:              DB          $0D, $0A, "S HIT @ $", 0
 MSG_C_USAGE:            DB          $0D, $0A
                         DB          "USAGE: C SRC_START SRC_END DST_START", 0
 MSG_LS_READY:           DB          $0D, $0A
