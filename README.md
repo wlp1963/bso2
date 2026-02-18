@@ -43,6 +43,8 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - `tools/bso2com/Makefile`: build rules for `bso2com`
 - `DOCS/monitor_usage.html`: detailed command reference
 - `DOCS/monitor_usage.pdf`: printable/offline command reference
+- `ZERO_PAGE_USAGE.md`: zero-page map and reference index
+- `ZERO_PAGE_USAGE.pdf`: printable zero-page reference
 - `DOCS/demo_showcase.md`: curated demo script from live session
 - `bso2 demo.log`: raw PuTTY capture used for demo/showcase
 
@@ -92,6 +94,8 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 - Quick list: `? H Z W D U A X G R N M F L C Q V`
 - Full reference (commands, edge cases, safety behavior): `DOCS/monitor_usage.html`
 - Printable reference: `DOCS/monitor_usage.pdf`
+- Zero-page reference: `ZERO_PAGE_USAGE.md`
+- Printable zero-page reference: `ZERO_PAGE_USAGE.pdf`
 
 ## Demo Showcase
 

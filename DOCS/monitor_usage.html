@@ -69,7 +69,7 @@ M = enter monitor</p>
     <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
     <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code></td><td>Force-prefix for protected commands.</td><td>Allows access to protected low RAM (<code>$0000-$03FF</code>).</td></tr>
     <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
-    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0089] &gt; 800D</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
+    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0080] &gt; 800D</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
   </table>
 
   <h2>3) Interactive Caveats</h2>
@@ -83,10 +83,11 @@ M = enter monitor</p>
     <li>At an empty monitor prompt, <code>Up Arrow</code> (<code>ESC [ A</code>) repeats and executes the previous command.</li>
     <li>Special repeat behavior: if the previous command was a <code>D ...</code> or <code>U ...</code> form, up-arrow replays bare <code>D</code>/<code>U</code>; <code>D</code> continues by saved span, <code>U</code> by saved next-instruction address.</li>
     <li><code>F/M/C/A/N</code> block access to <code>$0000-$03FF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
-    <li>Direct vector-hook edits with <code>!M</code> are non-atomic and debug-only. Writing live bytes at <code>$0089-$0091</code> (especially <code>$008C-$008E</code>) can produce mixed-byte jumps, wrong dispatch, hangs/crashes, or temporary vector-name mismatch while patching.</li>
+    <li>Direct vector-hook edits with <code>!M</code> are non-atomic and debug-only. Writing live bytes at <code>$0080-$0088</code> (especially <code>$0083-$0085</code>) can produce mixed-byte jumps, wrong dispatch, hangs/crashes, or temporary vector-name mismatch while patching.</li>
     <li>Game ask hook (<code>GAME ASK</code>, older text: <code>POST ASK</code>) is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
-    <li>Hook flag is fixed/reserved at <code>$0088</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 88 01</code> sets pending; <code>!M 88 00</code> clears pending.</li>
-    <li>Terminal width byte is fixed/reserved at <code>$0093</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
+    <li>Hook flag is fixed/reserved at <code>$0078</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 78 01</code> sets pending; <code>!M 78 00</code> clears pending.</li>
+    <li>Terminal width byte is fixed/reserved at <code>$007A</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
+    <li>User ZP range is reserved at <code>$0090-$00FF</code>.</li>
   </ul>
 
   <h2>4) Verify / Error Outputs</h2>
@@ -153,20 +154,21 @@ M = enter monitor</p>
   <h3>Build Section Usage (current)</h3>
   <table>
     <tr><th>Section</th><th>ORG</th><th>Size (hex)</th><th>Size (dec)</th></tr>
-    <tr><td>PAGE0</td><td><code>$0040</code></td><td><code>$BF</code></td><td>191</td></tr>
-    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$24A9</code></td><td>9385</td></tr>
-    <tr><td>KDATA</td><td><code>$A4A9</code></td><td><code>$1165</code></td><td>4453</td></tr>
-    <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$7A</code></td><td>122</td></tr>
-    <tr><td>Total</td><td>-</td><td><code>$3747</code></td><td>14151</td></tr>
+    <tr><td>PAGE0</td><td><code>$0030</code></td><td><code>$60</code></td><td>96</td></tr>
+    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$2725</code></td><td>10021</td></tr>
+    <tr><td>KDATA</td><td><code>$A725</code></td><td><code>$12A8</code></td><td>4776</td></tr>
+    <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$7F</code></td><td>127</td></tr>
+    <tr><td>Total</td><td>-</td><td><code>$3AAC</code></td><td>15020</td></tr>
   </table>
 
   <h3>RAM Layout Highlights</h3>
   <ul>
-    <li>PAGE0 starts at <code>$0040</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
-    <li>Guard policy reserves PAGE0 through <code>$00FE</code> to enforce a hard ceiling for this monitor build.</li>
-    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A4A9</code>).</li>
-    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0088</code>, <code>RST_HOOK=$0089</code>, <code>NMI_HOOK=$008C</code>, <code>IRQ_HOOK=$008F</code>, <code>BRK_FLAG=$0092</code>, <code>TERM_COLS=$0093</code>.</li>
+    <li>PAGE0 starts at <code>$0030</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
+    <li>Guard policy reserves monitor PAGE0 through <code>$008F</code>; user ZP is reserved at <code>$0090-$00FF</code>.</li>
+    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A725</code>).</li>
+    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>.</li>
     <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
+    <li>Detailed zero-page map: <a href="../ZERO_PAGE_USAGE.md"><code>ZERO_PAGE_USAGE.md</code></a> and <a href="../ZERO_PAGE_USAGE.pdf"><code>ZERO_PAGE_USAGE.pdf</code></a>.</li>
     <li>UDATA starts at <code>$0200</code>:</li>
   </ul>
   <p class="mono">RBUF_DATA    32 bytes

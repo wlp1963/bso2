@@ -78,7 +78,9 @@ ZP_NMI_HOOK_ADDR        EQU         $83
 ZP_IRQ_HOOK_ADDR        EQU         $86
 ZP_BRK_FLAG_ADDR        EQU         $79
 ZP_TERM_COLS_ADDR       EQU         $7A
-ZP_GUARD_END_EXCL       EQU         $00FF ; KEEP USAGE <= $00FE
+ZP_GUARD_END_EXCL       EQU         $0090 ; KEEP USAGE <= $008F
+USER_ZP_BASE_ADDR       EQU         $90
+USER_ZP_END_ADDR        EQU         $FF
 HW_VEC_NMI_ADDR         EQU         $FFFA
 HW_VEC_RST_ADDR         EQU         $FFFC
 HW_VEC_IRQ_ADDR         EQU         $FFFE
@@ -165,7 +167,7 @@ NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
                         DS          ZP_IRQ_HOOK_ADDR-* ; PIN IRQ TRAMPOLINE
 IRQ_HOOK:               DS          3   ; IRQ VECTOR JUMP
 
-; PAGE0 GUARD: RESERVE UP TO $00FE; NEGATIVE DS FAILS IF WE EVER CROSS IT
+; PAGE0 GUARD: RESERVE UP TO $008F; NEGATIVE DS FAILS IF WE EVER CROSS IT
                         DS          ZP_GUARD_END_EXCL-*
 
 SYSF_FORCE_MODE_M       EQU         %00000001 ; 1 IF COMMAND PREFIXED WITH '!'
@@ -2327,9 +2329,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_34
                         PRT_CSTRING MSG_HELP_FULL_35
                         PRT_CSTRING MSG_HELP_FULL_36
-                        PRT_CSTRING MSG_HELP_FULL_37
-                        PRT_CSTRING MSG_HELP_FULL_38
-                        PRT_CSTRING MSG_HELP_FULL_39
+                        JSR         CMD_PRINT_HELP_FIXED_ADDRS
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2341,9 +2341,7 @@ CMD_PRINT_HELP_PROTECTION:
                         PRT_CSTRING MSG_HELP_FULL_23
                         PRT_CSTRING MSG_HELP_FULL_24
                         PRT_CSTRING MSG_HELP_FULL_25
-                        PRT_CSTRING MSG_HELP_FULL_37
-                        PRT_CSTRING MSG_HELP_FULL_38
-                        PRT_CSTRING MSG_HELP_FULL_39
+                        JSR         CMD_PRINT_HELP_FIXED_ADDRS
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2377,6 +2375,65 @@ CMD_PRINT_HELP_STEERING:
                         PRT_CSTRING MSG_HELP_FULL_33
                         PRT_CSTRING MSG_HELP_FULL_34
                         PRT_CSTRING MSG_HELP_FULL_35
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_PRINT_HELP_FIXED_ADDRS
+; DESCRIPTION: PRINTS FIXED HW/ZP VECTOR + PINNED BYTE HELP LINES USING
+;              CURRENT SYMBOL ADDRESSES.
+; ----------------------------------------------------------------------------
+CMD_PRINT_HELP_FIXED_ADDRS:
+                        PRT_CSTRING MSG_HELP_ADDRS_HW
+                        LDA         #>HW_VEC_NMI_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<HW_VEC_NMI_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_ADDR_R
+                        LDA         #>HW_VEC_RST_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<HW_VEC_RST_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_ADDR_I
+                        LDA         #>HW_VEC_IRQ_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<HW_VEC_IRQ_ADDR
+                        JSR         PRT_HEX
+
+                        PRT_CSTRING MSG_HELP_ADDRS_ZP
+                        LDA         #>ZP_NMI_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<ZP_NMI_HOOK_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_ADDR_R
+                        LDA         #>ZP_RST_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<ZP_RST_HOOK_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_ADDR_I
+                        LDA         #>ZP_IRQ_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<ZP_IRQ_HOOK_ADDR
+                        JSR         PRT_HEX
+
+                        PRT_CSTRING MSG_HELP_GAME_ADDR
+                        LDA         #<ZP_GAME_ASK_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_GAME_SET
+                        LDA         #<ZP_GAME_ASK_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_GAME_CLR
+                        LDA         #<ZP_GAME_ASK_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_GAME_END
+
+                        PRT_CSTRING MSG_HELP_TERM_ADDR
+                        LDA         #<ZP_TERM_COLS_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_TERM_SET
+                        LDA         #<ZP_TERM_COLS_ADDR
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_HELP_TERM_END
+                        PRT_CSTRING MSG_HELP_USER_ZP
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -6160,17 +6217,23 @@ MSG_HELP_FULL_35:       DB          $0D, $0A
                         DB          "RY NOT SUPPORTED", 0
 MSG_HELP_FULL_36:       DB          $0D, $0A
                         DB          "  HOST NOTE        NO PYTHON REQUIRED", 0
-MSG_HELP_FULL_37:       DB          $0D, $0A, $0D, $0A
-                        DB          "  HW VECTORS @     N:FFFA R:FFFC I:FFFE"
-                        DB          0
-MSG_HELP_FULL_38:       DB          $0D, $0A
-                        DB          "  ZP VECTORS @     N:0083 R:0080 I:0086"
-                        DB          0
-MSG_HELP_FULL_39:       DB          $0D, $0A
-                        DB          "  GAME PRMPT @ $78 !M 78 01=SET  !M 78 00=CL"
-                        DB          "EAR", $0D, $0A
-                        DB          "  TERM COL   @ $7A !M 7A 28/50/84 (40/80/13"
-                        DB          "2)", 0
+MSG_HELP_ADDRS_HW:      DB          $0D, $0A, $0D, $0A
+                        DB          "  HW VECTORS @     N:", 0
+MSG_HELP_ADDRS_ZP:      DB          $0D, $0A
+                        DB          "  ZP VECTORS @     N:", 0
+MSG_HELP_ADDR_R:        DB          " R:", 0
+MSG_HELP_ADDR_I:        DB          " I:", 0
+MSG_HELP_GAME_ADDR:     DB          $0D, $0A
+                        DB          "  GAME PRMPT @ $", 0
+MSG_HELP_GAME_SET:      DB          " !M ", 0
+MSG_HELP_GAME_CLR:      DB          " 01=SET  !M ", 0
+MSG_HELP_GAME_END:      DB          " 00=CLEAR", 0
+MSG_HELP_TERM_ADDR:     DB          $0D, $0A
+                        DB          "  TERM COL   @ $", 0
+MSG_HELP_TERM_SET:      DB          " !M ", 0
+MSG_HELP_TERM_END:      DB          " 28/50/84 (40/80/132)", 0
+MSG_HELP_USER_ZP:       DB          $0D, $0A
+                        DB          "  USER ZP    @ $90-$FF", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0
