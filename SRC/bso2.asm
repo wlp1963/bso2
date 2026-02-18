@@ -3910,14 +3910,76 @@ SEARCH_MATCH_AT_CUR:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: SEARCH_PRINT_HIT
-; DESCRIPTION: PRINTS MATCH ADDRESS
+; DESCRIPTION: PRINTS MATCH ADDRESS + ALIGNED 16-BYTE CONTEXT ROW
+; FORMAT: "HHLL HHH0: <16 HEX BYTES> |ASCII|"
+;         - FIRST WORD IS EXACT HIT ADDRESS
+;         - SECOND WORD IS HIT ADDRESS ALIGNED TO $xxx0
 ; ----------------------------------------------------------------------------
 SEARCH_PRINT_HIT:
-                        PRT_CSTRING MSG_S_HIT
+                        JSR         PRT_CRLF
                         LDA         PTR_DUMP_CUR+1
                         JSR         PRT_HEX
                         LDA         PTR_DUMP_CUR
                         JSR         PRT_HEX
+                        JSR         PRT_SPACE
+
+        ; ROW BASE = HIT & $FFF0
+                        LDA         PTR_DUMP_CUR
+                        AND         #$F0
+                        STA         PTR_TEMP
+                        LDA         PTR_DUMP_CUR+1
+                        STA         PTR_TEMP+1
+
+                        LDA         PTR_TEMP+1
+                        JSR         PRT_HEX
+                        LDA         PTR_TEMP
+                        JSR         PRT_HEX
+                        LDA         #':'
+                        JSR         WRITE_BYTE
+                        JSR         PRT_SPACE
+
+        ; HEX COLUMN (16 BYTES, WITH 8|8 SPLIT MARKER)
+                        LDY         #$00
+?SPH_HEX_LOOP:
+                        LDA         (PTR_TEMP),Y
+                        JSR         PRT_HEX
+                        JSR         PRT_SPACE
+                        INY
+                        CPY         #$08
+                        BNE         ?SPH_HEX_NEXT
+                        LDA         #'|'
+                        JSR         WRITE_BYTE
+                        JSR         PRT_SPACE
+?SPH_HEX_NEXT:
+                        CPY         #$10
+                        BNE         ?SPH_HEX_LOOP
+
+        ; ASCII COLUMN
+                        JSR         PRT_SPACE
+                        LDA         #'|'
+                        JSR         WRITE_BYTE
+                        LDY         #$00
+?SPH_ASCII_LOOP:
+                        LDA         (PTR_TEMP),Y
+                        CMP         #$20
+                        BCC         ?SPH_ASCII_DOT
+                        CMP         #$7F
+                        BCS         ?SPH_ASCII_DOT
+                        BRA         ?SPH_ASCII_OUT
+?SPH_ASCII_DOT:
+                        LDA         #'.'
+?SPH_ASCII_OUT:
+                        JSR         WRITE_BYTE
+                        INY
+                        CPY         #$08
+                        BNE         ?SPH_ASCII_NEXT
+                        LDA         #'|'
+                        JSR         WRITE_BYTE
+?SPH_ASCII_NEXT:
+                        CPY         #$10
+                        BNE         ?SPH_ASCII_LOOP
+                        LDA         #'|'
+                        JSR         WRITE_BYTE
                         RTS
 
 ; ----------------------------------------------------------------------------
