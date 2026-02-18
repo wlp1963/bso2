@@ -18,9 +18,8 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher
 - Ring-buffer command parser
-- Commands: `? H Z W D U A X G R N M F L C Q V`
-- Command reference: `DOCS/monitor_usage.html`
-- ZP map reference: `ZERO_PAGE_USAGE.md`
+- Commands: `? H Z W D U A X G R N M F L C Q V` ([reference](DOCS/monitor_usage.html))
+- ZP map reference: [ZERO_PAGE_USAGE.md](ZERO_PAGE_USAGE.md) ([PDF](ZERO_PAGE_USAGE.pdf))
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with `CURR`/`NEXT` instruction lines and `STATE` line
 
