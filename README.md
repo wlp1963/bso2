@@ -8,10 +8,12 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 
 ## Name
 
-- `bso2` = `Basic System Operations/2`
-- The `/2` references the 6502 lineage.
-- Stylized glyph note: `6` can stand in for lowercase `b`, and `5` can stand in for lowercase `s`.
-- That makes `6502` a visual shorthand for `bso2` (`6`=`b`, `5`=`s`, `0`=`o`, `2`=`/2`).
+- `bso2` `on` `6502` `is` `Basic System Operations/2`
+
+- Name legend: `b = 6 = Basic`
+- Name legend: `s = 5 = System`
+- Name legend: `o = 0 = Operations`
+- Name legend: `2 = /2` (with an `S/36`-style nod in the slash form)
 
 ## Features
 
