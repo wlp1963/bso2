@@ -5,6 +5,8 @@ This project is MIT-licensed for original code in this repository.
 ## Western Design Center (WDC)
 
 - `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
+- Official site references: `https://wdc65xx.com/` and `https://westerndesigncenter.com/`
+- Disclosure: references to WDC products/sites are informational only and do not imply sponsorship or paid promotion.
 - This project references WDC hardware/platform behavior and toolchain usage.
 - This repository does **not** include or redistribute WDC tool binaries or WDC ROM images.
 

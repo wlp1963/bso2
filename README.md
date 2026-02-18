@@ -120,13 +120,16 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 ### Snapshot
 
 - `Now`: wrap `WDCMONv2` FLASH calls behind `bso2` wrappers/trampolines, extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`), and add post-link check for `END_KDATA < $F000`.
+- `Soon`: get the ACIA port on the EDU board running.
 - `Before publish`: complete XMODEM send/receive, staged vector commit flow, and critical FLASH/vector safety behaviors.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
 ## Legal
 
 - `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
+- Official WDC sites: `https://wdc65xx.com/` and `https://westerndesigncenter.com/`
 - This project is independent and not affiliated with or endorsed by Western Design Center, Inc.
+- Disclosure: this is an independent personal project; no compensation, sponsorship, or endorsement has been received from Western Design Center, Inc.
 - This repository does not redistribute WDC tool binaries or WDC ROM images.
 - Third-party references are listed in `THIRD_PARTY_NOTICES.md`.
 - `WDCMONv2` usage in this project is intended as wrapper/trampoline integration; any direct source reuse must be covered by upstream license/permission and documented in `THIRD_PARTY_NOTICES.md`.
