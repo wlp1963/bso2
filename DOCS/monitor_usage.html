@@ -42,7 +42,27 @@
   <p class="mono">C = clear RAM (confirm Y/N)
 W = warm start
 M = enter monitor</p>
+  <p>Power-on prompt uses <code>C/M</code> with a 6-second wait and <code>&gt;</code> tick markers; timeout defaults to <code>C</code>.</p>
+  <p>Reset-cookie prompt uses <code>C/W/M</code> with a 6-second wait and <code>&lt;</code> tick markers; LEDs blink every ~333ms while waiting and timeout defaults to <code>M</code>.</p>
+  <p>Boot-choice and clear-confirm prompts echo keypresses in uppercase.</p>
+  <h3>C/W/M Decision Truth Table</h3>
+  <table>
+    <tr><th style="width:26%">Condition</th><th style="width:18%">Input</th><th style="width:56%">Result</th></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td><code>C</code></td><td>Enter clear path.</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td><code>M</code></td><td>Enter monitor path.</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td>Timeout</td><td>Default to clear path (<code>C</code>).</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td>Invalid key</td><td>Ignored; prompt/countdown continues.</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>C</code></td><td>Enter clear confirmation prompt <code>Y/N</code>.</td></tr>
+    <tr><td>Clear confirmation</td><td><code>Y</code></td><td>Run clear-memory path.</td></tr>
+    <tr><td>Clear confirmation</td><td><code>N</code></td><td>Abort clear and continue warm path (<code>W</code>-equivalent branch).</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>W</code></td><td>Warm start path (no clear).</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>M</code></td><td>Monitor path.</td></tr>
+    <tr><td>Reset with valid cookie</td><td>Invalid key</td><td>Ignored; prompt/countdown continues.</td></tr>
+    <tr><td>Reset with valid cookie</td><td>Timeout</td><td>Default to monitor path (<code>M</code>).</td></tr>
+  </table>
+  <p>Note: this is the default behavior for the currently installed vector trampolines/handlers; future trampolines or handlers may implement different startup policy.</p>
   <p>A terminal-width prompt follows boot selection: <code>TERM WIDTH 4=40 8=80 1=132 [8]?</code>.</p>
+  <p>Width prompt timeout uses fixed byte <code>$007B</code> (<code>TERM_WIDTH_TIMEOUT</code>): <code>00=wait forever</code>, <code>01-FF=seconds</code>, default <code>08</code>.</p>
   <p>Width persistence policy: <code>W/M</code> restore prior width before prompting; <code>C</code> starts from default 80 before prompting.</p>
   <p>After clear/startup, the sign-on banner (<code>BSO2_INIT</code>) is printed:</p>
   <p class="mono">     **** basic system operations/2 ****
@@ -68,7 +88,7 @@ M = enter monitor</p>
     <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
     <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code></td><td>Force-prefix for protected commands.</td><td>Allows access to protected low RAM (<code>$0000-$03FF</code>).</td></tr>
     <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
-    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0080] &gt; 800D</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
+    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0080] &gt; 800D</code>. IRQ now appends sub-dispatch lines: <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
   </table>
 
   <h2>3) Interactive Caveats</h2>
@@ -86,6 +106,7 @@ M = enter monitor</p>
     <li>Game ask hook (<code>GAME ASK</code>, older text: <code>POST ASK</code>) is one-shot: it is set on Reset and when NMI returns to monitor, then cleared after first use.</li>
     <li>Hook flag is fixed/reserved at <code>$0078</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 78 01</code> sets pending; <code>!M 78 00</code> clears pending.</li>
     <li>Terminal width byte is fixed/reserved at <code>$007A</code> (<code>TERM_COLS</code>): <code>28/50/84</code> for <code>40/80/132</code> columns.</li>
+    <li>Terminal-width prompt timeout byte is fixed/reserved at <code>$007B</code> (<code>TERM_WIDTH_TIMEOUT</code>): <code>00=wait forever</code>, <code>01-FF=seconds</code>, default <code>08</code>.</li>
     <li>User ZP range is reserved at <code>$0090-$00FF</code>.</li>
   </ul>
 
@@ -165,7 +186,7 @@ M = enter monitor</p>
     <li>PAGE0 starts at <code>$0030</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
     <li>Guard policy reserves monitor PAGE0 through <code>$008F</code>; user ZP is reserved at <code>$0090-$00FF</code>.</li>
     <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A725</code>).</li>
-    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>.</li>
+    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>TERM_WIDTH_TIMEOUT=$007B</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>, <code>BRK_HOOK=$0089</code>, <code>HW_HOOK=$008C</code>.</li>
     <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
     <li>Detailed zero-page map: <a href="../ZERO_PAGE_USAGE.md"><code>ZERO_PAGE_USAGE.md</code></a> and <a href="../ZERO_PAGE_USAGE.pdf"><code>ZERO_PAGE_USAGE.pdf</code></a>.</li>
     <li>UDATA starts at <code>$0200</code>:</li>
@@ -269,7 +290,6 @@ DBG_TAG_BUF   6 bytes</p>
   <h4>Now</h4>
   <ul>
     <li>TODO: wrap <code>WDCMONv2</code> FLASH routine calls behind <code>bso2</code> wrapper/trampoline entry points.</li>
-    <li>TODO: extend <code>V</code> IRQ output to include sub-dispatch lines for <code>BRK</code> and <code>HW</code> targets (for example <code>IRQ: ... &gt; DISPATCH</code>, then <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>).</li>
     <li>TODO: add a post-link map check that enforces <code>END_KDATA &lt; $F000</code>.</li>
   </ul>
 

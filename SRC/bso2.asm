@@ -76,8 +76,13 @@ ZP_GAME_ASK_ADDR        EQU         $78
 ZP_RST_HOOK_ADDR        EQU         $80
 ZP_NMI_HOOK_ADDR        EQU         $83
 ZP_IRQ_HOOK_ADDR        EQU         $86
+ZP_BRK_HOOK_ADDR        EQU         $89
+ZP_HW_HOOK_ADDR         EQU         $8C
 ZP_BRK_FLAG_ADDR        EQU         $79
 ZP_TERM_COLS_ADDR       EQU         $7A
+ZP_TERM_TIMEOUT_ADDR    EQU         $7B
+ZP_TERM_WAIT_LED_ADDR   EQU         $7E
+ZP_TERM_WAIT_SECS_ADDR  EQU         $7F
 ZP_GUARD_END_EXCL       EQU         $0090 ; KEEP USAGE <= $008F
 USER_ZP_BASE_ADDR       EQU         $90
 USER_ZP_END_ADDR        EQU         $FF
@@ -87,6 +92,7 @@ HW_VEC_IRQ_ADDR         EQU         $FFFE
 TERM_COLS_40            EQU         $28
 TERM_COLS_80            EQU         $50
 TERM_COLS_132           EQU         $84
+TERM_WIDTH_TIMEOUT_DFLT EQU         $08 ; SECONDS (0=WAIT FOREVER)
 
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
@@ -160,6 +166,13 @@ GAME_ASK_PENDING:       DS          1   ; FIXED @ $0078 (EXTERNAL/USER-FACING)
 BRK_FLAG                DS          1
                         DS          ZP_TERM_COLS_ADDR-* ; PIN TERMINAL WIDTH BYTE
 TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
+                        DS          ZP_TERM_TIMEOUT_ADDR-*
+                                        ; PIN TERM WIDTH PROMPT TIMEOUT BYTE
+TERM_WIDTH_TIMEOUT:     DS          1   ; 0=WAIT FOREVER, 1..255=SECONDS
+                        DS          ZP_TERM_WAIT_LED_ADDR-*
+TERM_WAIT_LED:          DS          1   ; LED BLINK PATTERN SCRATCH
+                        DS          ZP_TERM_WAIT_SECS_ADDR-*
+TERM_WAIT_SECS:         DS          1   ; WIDTH-PROMPT SECONDS SCRATCH
 
                         DS          ZP_RST_HOOK_ADDR-* ; PIN RST TRAMPOLINE
 RST_HOOK:               DS          3   ; RST VECTOR JUMP
@@ -167,6 +180,10 @@ RST_HOOK:               DS          3   ; RST VECTOR JUMP
 NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
                         DS          ZP_IRQ_HOOK_ADDR-* ; PIN IRQ TRAMPOLINE
 IRQ_HOOK:               DS          3   ; IRQ VECTOR JUMP
+                        DS          ZP_BRK_HOOK_ADDR-* ; PIN BRK SUB-HOOK
+BRK_HOOK:               DS          3   ; BRK DISPATCH TRAMPOLINE
+                        DS          ZP_HW_HOOK_ADDR-* ; PIN HW IRQ SUB-HOOK
+HW_HOOK:                DS          3   ; HW IRQ DISPATCH TRAMPOLINE
 
 ; PAGE0 GUARD: RESERVE UP TO $008F; NEGATIVE DS FAILS IF WE EVER CROSS IT
                         DS          ZP_GUARD_END_EXCL-*
@@ -254,6 +271,8 @@ SYS_RST:
                         STA         PSR_TEMP
                         LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
                         STA         TERM_COLS
+                        LDA         #TERM_WIDTH_TIMEOUT_DFLT
+                        STA         TERM_WIDTH_TIMEOUT
                         LDA         #$01 ; ASK ONCE AFTER RESET
                         STA         GAME_ASK_PENDING
                         LDA         #SYSF_H_AUTO_EN_M+SYSF_H_AUTO_PEND_M
@@ -280,12 +299,23 @@ SYS_RST:
 ?COOKIE_OK:
 
         ; --- MAGIC VALID: ASK USER ---
+        ; C/W/M DECISION TRUTH TABLE:
+        ;   KEY=C -> ASK "Y/N" CONFIRM:
+        ;              Y -> C PATH (MEMCLR)
+        ;              N -> W PATH (WARM NO VECT)
+        ;   KEY=W -> W PATH (WARM NO VECT)
+        ;   KEY=M -> M PATH (MONITOR)
+        ;   INVALID KEY -> RE-PROMPT/COUNTDOWN CONTINUES
+        ;   TIMEOUT -> DEFAULT M PATH
+        ; POWER-ON (NO VALID COOKIE) USES C/M TREE (TIMEOUT DEFAULTS TO C).
+        ; NOTE: THIS IS DEFAULT BOOT BEHAVIOR FOR THE CURRENTLY INSTALLED
+        ; VECTOR TRAMPOLINES/HANDLERS; FUTURE TRAMPOLINES MAY BEHAVE DIFFERENTLY.
                         LDA         #SYSF_RESET_FLAG_M
                         TSB         SYS_FLAGS
                         PRT_CSTRING MSG_RESET_TRIGGERED ; RESET BUTTON PATH
                         PRT_CSTRING OSI ; PRINT "C/W/M"
 ?ASK_BOOT:
-                        JSR         READ_BYTE ; WAIT FOR INPUT
+                        JSR         BOOT_WAIT_CWM_KEY
                         JSR         KEY_IS_C ; C/c = COLD / CLEAR
                         BEQ         ?ASK_CLR_CONFIRM
 
@@ -301,7 +331,7 @@ SYS_RST:
 ?ASK_CLR_CONFIRM:
                         PRT_CSTRING MSG_CLR_CONFIRM
 ?WAIT_CLR_CONFIRM:
-                        JSR         READ_BYTE
+                        JSR         READ_BYTE_ECHO_UPPER
                         JSR         KEY_IS_Y
                         BEQ         ?BOOT_GO_MEMCLR
                         JSR         KEY_IS_N
@@ -322,11 +352,23 @@ SYS_RST:
 ?BOOT_GO_MONITOR:
                         JSR         TERM_RESTORE_SAVED
                         JSR         PROMPT_TERM_WIDTH
-                        JMP         MONITOR
+                        JMP         MONITOR_CLEAN
 
 POWER_ON_CLR:
                         PRT_CSTRING MSG_POWER_ON
+                        PRT_CSTRING OSI_CM ; PRINT "C/M"
+?POW_ASK_BOOT:
+                        JSR         BOOT_WAIT_CM_KEY
+                        JSR         KEY_IS_C
+                        BEQ         ?POW_GO_MEMCLR
+                        JSR         KEY_IS_M
+                        BNE         ?POW_ASK_BOOT
+                        JSR         RESET_COOKIE_SET
                         JSR         PROMPT_TERM_WIDTH
+                        JMP         MONITOR_CLEAN
+?POW_GO_MEMCLR:
+                        JSR         PROMPT_TERM_WIDTH
+                        JMP         MEMCLR
 
 MEMCLR:                 PRT_CSTRING MSG_RAM_CLEARED
                         JSR         MEMCLR_CORE
@@ -337,6 +379,21 @@ WARM:                   PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON
                         JSR         SHOW_VECTORS ; SHOW INTERRUPT CHAINS
                         BRA         MONITOR
 WARM_NO_VECT:           PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON (NO VECTOR DUMP)
+                        PRT_CSTRING MSG_WARMSTART
+
+; ----------------------------------------------------------------------------
+; ENTRY: MONITOR_CLEAN
+; DESCRIPTION: CLEAN OPERATOR ENTRY (USED BY M PATH)
+; NOTES:
+;   - CLEARS LAST-COMMAND REPEAT + INTERACTIVE CONTINUATION STATE.
+;   - THEN FALLS THROUGH TO QUICK MONITOR ENTRY.
+; ----------------------------------------------------------------------------
+MONITOR_CLEAN:
+                        STZ         CMD_LAST_LEN ; DROP UP-ARROW REPEAT CONTEXT
+                        STZ         DUMP_VALID ; RESET D REPEAT CONTEXT
+                        STZ         UNASM_VALID ; RESET U REPEAT CONTEXT
+                        STZ         MOD_VALID ; RESET M REPEAT CONTEXT
+
 MONITOR:                JSR         PRT_CRLF ; NEW LINE
                         JSR         PRT_UNDER ; PRINT CURSOR
                         JSR         SHOW_STARTUP_HELP_ONCE
@@ -407,6 +464,15 @@ MEM_CLEAR_RAM_LOOP:
 
 MEMCLR_CORE:
                         JSR         MEM_CLEAR_RAM_LOOP
+                        JSR         RESET_COOKIE_SET
+                        jsr         MAIN_INIT
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RESET_COOKIE_SET
+; DESCRIPTION: WRITES RESET COOKIE "WDC",0 TO RESET_COOKIE
+; ----------------------------------------------------------------------------
+RESET_COOKIE_SET:
                         LDA         #'W'
                         STA         RESET_COOKIE
                         LDA         #'D'
@@ -414,7 +480,6 @@ MEMCLR_CORE:
                         LDA         #'C'
                         STA         RESET_COOKIE+2
                         STZ         RESET_COOKIE+3
-                        jsr         MAIN_INIT
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -465,6 +530,33 @@ WRITE_BYTE:
 READ_BYTE:
                         JSR         WDC_READ_BYTE ; CALL ROM READ
                         RTS             ; RETURN TO CALLER
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: READ_BYTE_ECHO
+; DESCRIPTION: READS ONE BYTE (BLOCKING) AND ECHOES IT TO UART
+; INPUT: NONE
+; OUTPUT: A = BYTE RECEIVED
+; ----------------------------------------------------------------------------
+READ_BYTE_ECHO:
+                        JSR         READ_BYTE
+                        PHA
+                        JSR         WRITE_BYTE
+                        PLA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: READ_BYTE_ECHO_UPPER
+; DESCRIPTION: READS ONE BYTE (BLOCKING), UPPERCASES, ECHOES, RETURNS UPPERCASE
+; INPUT: NONE
+; OUTPUT: A = UPPERCASED BYTE
+; ----------------------------------------------------------------------------
+READ_BYTE_ECHO_UPPER:
+                        JSR         READ_BYTE
+                        JSR         UTIL_TO_UPPER
+                        PHA
+                        JSR         WRITE_BYTE
+                        PLA
+                        RTS
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: UTIL_TO_UPPER
@@ -518,14 +610,109 @@ KEY_IS_N:
                         RTS
 
 ; ----------------------------------------------------------------------------
+; SUBROUTINE: BOOT_WAIT_CWM_KEY
+; DESCRIPTION: WAITS UP TO 6 SECONDS FOR C/W/M (RESET PATH)
+; INPUT: NONE
+; OUTPUT: A=KEY BYTE; DEFAULTS TO 'M' ON TIMEOUT
+; NOTES:
+;   - VISUAL MARKER: PRINTS " <" ON EACH SECOND TICK.
+;   - BLINKS LED EVERY ~333MS WHILE WAITING.
+;   - TIME BASE: 3 x DELAY_333MS ~= 1 SECOND PER COUNT.
+; ----------------------------------------------------------------------------
+BOOT_WAIT_CWM_KEY:
+                        LDA         #$06
+                        STA         TERM_WAIT_SECS
+                        LDA         #$FF
+                        STA         TERM_WAIT_LED
+?BWCK_RST_TICK:
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        LDA         #'<'
+                        JSR         WRITE_BYTE
+                        LDY         #$03
+?BWCK_RST_WAIT_1S:
+                        JSR         CHECK_BYTE
+                        BCC         ?BWCK_RST_HAVE
+                        LDA         TERM_WAIT_LED
+                        JSR         PUT_LED
+                        LDA         TERM_WAIT_LED
+                        EOR         #$FF
+                        STA         TERM_WAIT_LED
+                        JSR         DELAY_333MS
+                        DEY
+                        BNE         ?BWCK_RST_WAIT_1S
+                        DEC         TERM_WAIT_SECS
+                        BNE         ?BWCK_RST_TICK
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        LDA         #'M' ; TIMEOUT DEFAULT: MONITOR PATH
+                        JSR         WRITE_BYTE
+                        LDA         #'M'
+                        RTS
+?BWCK_RST_HAVE:
+                        JSR         READ_BYTE_ECHO_UPPER
+                        JSR         KEY_IS_C
+                        BEQ         ?BWCK_RST_DONE
+                        JSR         KEY_IS_W
+                        BEQ         ?BWCK_RST_DONE
+                        JSR         KEY_IS_M
+                        BEQ         ?BWCK_RST_DONE
+                        BRA         ?BWCK_RST_WAIT_1S
+?BWCK_RST_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: BOOT_WAIT_CM_KEY
+; DESCRIPTION: WAITS UP TO 6 SECONDS FOR C/M (POWER-ON PATH)
+; INPUT: NONE
+; OUTPUT: A=KEY BYTE; DEFAULTS TO 'C' ON TIMEOUT
+; NOTES:
+;   - VISUAL MARKER: PRINTS " >" ON EACH SECOND TICK.
+;   - TIME BASE: 3 x DELAY_333MS ~= 1 SECOND PER COUNT.
+; ----------------------------------------------------------------------------
+BOOT_WAIT_CM_KEY:
+                        LDA         #$06
+                        STA         TERM_WAIT_SECS
+?BWCM_TICK:
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        LDA         #'>'
+                        JSR         WRITE_BYTE
+                        LDY         #$03
+?BWCM_WAIT_1S:
+                        JSR         CHECK_BYTE
+                        BCC         ?BWCM_HAVE
+                        JSR         DELAY_333MS
+                        DEY
+                        BNE         ?BWCM_WAIT_1S
+                        DEC         TERM_WAIT_SECS
+                        BNE         ?BWCM_TICK
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        LDA         #'C' ; TIMEOUT DEFAULT: COLD/CLEAR PATH
+                        JSR         WRITE_BYTE
+                        LDA         #'C'
+                        RTS
+?BWCM_HAVE:
+                        JSR         READ_BYTE_ECHO_UPPER
+                        JSR         KEY_IS_C
+                        BEQ         ?BWCM_DONE
+                        JSR         KEY_IS_M
+                        BEQ         ?BWCM_DONE
+                        BRA         ?BWCM_WAIT_1S
+?BWCM_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: PROMPT_TERM_WIDTH
 ; DESCRIPTION: PROMPTS FOR TERMINAL WIDTH USING SINGLE-KEY SELECTION
-; INPUT: NONE
+; INPUT: TERM_WIDTH_TIMEOUT (0=WAIT FOREVER, 1..255=SECONDS)
 ; OUTPUT: TERM_COLS = 40/80/132 (DEFAULT REMAINS 80 ON OTHER INPUT)
 ; ----------------------------------------------------------------------------
 PROMPT_TERM_WIDTH:
                         PRT_CSTRING MSG_TERM_WIDTH_PROMPT
-                        JSR         READ_BYTE
+                        JSR         TERM_WAIT_WIDTH_KEY
+                        BCS         ?PTW_DONE ; TIMEOUT: KEEP CURRENT WIDTH
                         CMP         #'4'
                         BEQ         ?PTW_SET_40
                         CMP         #'8'
@@ -549,6 +736,93 @@ PROMPT_TERM_WIDTH:
                         STA         TERM_COLS
                         JSR         TERM_FLUSH_LINE
                         RTS
+?PTW_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_WAIT_WIDTH_KEY
+; DESCRIPTION: WAITS FOR WIDTH KEY WITH BLINKING LED + TIMEOUT
+; INPUT: TERM_WIDTH_TIMEOUT (0=WAIT FOREVER, 1..255=SECONDS)
+; OUTPUT: C=0 + A=KEY IF RECEIVED, C=1 ON TIMEOUT
+; NOTES:
+;   - Uses DELAY_333MS as half-step for a ~0.333s ON / ~0.333s OFF cadence.
+;   - Blink pattern/counter are stored in fixed ZP scratch bytes.
+; ----------------------------------------------------------------------------
+TERM_WAIT_WIDTH_KEY:
+                        LDA         #$FF ; START BLINK PATTERN
+                        STA         TERM_WAIT_LED
+                        LDA         TERM_WIDTH_TIMEOUT
+                        BEQ         ?TWWK_FOREVER
+                        STA         TERM_WAIT_SECS
+?TWWK_TIMED_LOOP:
+                        JSR         TERM_WAIT_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        JSR         PUT_LED
+                        JSR         TERM_WAIT_HALF_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        EOR         #$FF
+                        STA         TERM_WAIT_LED
+                        LDA         TERM_WAIT_LED
+                        JSR         PUT_LED
+                        JSR         TERM_WAIT_HALF_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        EOR         #$FF
+                        STA         TERM_WAIT_LED
+                        DEC         TERM_WAIT_SECS
+                        BNE         ?TWWK_TIMED_LOOP
+                        SEC
+                        RTS
+
+?TWWK_FOREVER:
+?TWWK_FOREVER_LOOP:
+                        JSR         TERM_WAIT_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        JSR         PUT_LED
+                        JSR         TERM_WAIT_HALF_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        EOR         #$FF
+                        STA         TERM_WAIT_LED
+                        LDA         TERM_WAIT_LED
+                        JSR         PUT_LED
+                        JSR         TERM_WAIT_HALF_POLL_KEY
+                        BCC         ?TWWK_GOT_KEY
+                        LDA         TERM_WAIT_LED
+                        EOR         #$FF
+                        STA         TERM_WAIT_LED
+                        BRA         ?TWWK_FOREVER_LOOP
+
+?TWWK_GOT_KEY:
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_WAIT_POLL_KEY
+; DESCRIPTION: NON-BLOCKING KEY POLL FOR TERM_WAIT_WIDTH_KEY
+; OUTPUT: C=0 + A=KEY IF READY, C=1 IF NO DATA
+; ----------------------------------------------------------------------------
+TERM_WAIT_POLL_KEY:
+                        JSR         CHECK_BYTE
+                        BCS         ?TWPK_EMPTY
+                        JSR         READ_BYTE
+                        CLC
+                        RTS
+?TWPK_EMPTY:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_WAIT_HALF_POLL_KEY
+; DESCRIPTION: WAITS ONE ~333ms HALF-STEP, THEN POLLS FOR KEY
+; OUTPUT: C=0 + A=KEY IF READY, C=1 IF NO DATA
+; ----------------------------------------------------------------------------
+TERM_WAIT_HALF_POLL_KEY:
+                        JSR         DELAY_333MS
+                        JMP         TERM_WAIT_POLL_KEY
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: TERM_FLUSH_LINE
@@ -2254,7 +2528,7 @@ CMD_TABLE:
 CMD_CONFIRM_CLEAR:
                         PRT_CSTRING MSG_CLR_CONFIRM
 ?CCC_WAIT_KEY:
-                        JSR         READ_BYTE
+                        JSR         READ_BYTE_ECHO_UPPER
                         JSR         KEY_IS_Y
                         BEQ         ?CCC_DO_CLEAR
                         JSR         KEY_IS_N
@@ -5347,6 +5621,22 @@ INIT_IRQ:               PUSH        A
                         PULL        A
                         RTS
 
+INIT_IRQ_SUBHOOKS:      PUSH        A
+                        LDA         #$4C ; JMP OPCODE
+                        STA         BRK_HOOK
+                        LDA         #<SYS_IRQ_BRK_DISPATCH ; LO ADDR
+                        STA         BRK_HOOK+1
+                        LDA         #>SYS_IRQ_BRK_DISPATCH ; HI ADDR
+                        STA         BRK_HOOK+2
+                        LDA         #$4C ; JMP OPCODE
+                        STA         HW_HOOK
+                        LDA         #<SYS_IRQ_HW_DISPATCH ; LO ADDR
+                        STA         HW_HOOK+1
+                        LDA         #>SYS_IRQ_HW_DISPATCH ; HI ADDR
+                        STA         HW_HOOK+2
+                        PULL        A
+                        RTS
+
 INIT_RST:
                         SEI             ; DISABLE INTS
                         CLD             ; CLEAR DECIMAL
@@ -5356,6 +5646,7 @@ INIT_RST:
         ; --- INIT ALL VECTORS ---
                         JSR         INIT_NMI ; Setup NMI_HOOK trampoline
                         JSR         INIT_IRQ ; Setup IRQ_HOOK trampoline
+                        JSR         INIT_IRQ_SUBHOOKS
 
                         LDA         #$4C ; JMP OPCODE
                         STA         RST_HOOK ; STORE
@@ -5406,10 +5697,14 @@ SYS_IRQ:                SEI             ; LOCK
                         JSR         DEBUG_IRQ
                         LDA         DBG_MODE
                         CMP         #DBG_MODE_BRK
-                        BNE         ?SIRQ_RTI
+                        BEQ         ?SIRQ_TO_BRK
+                        JMP         HW_HOOK
+?SIRQ_TO_BRK:
+                        JMP         BRK_HOOK
+SYS_IRQ_BRK_DISPATCH:
                         LDA         #SYSF_GO_FLAG_M
                         BIT         SYS_FLAGS
-                        BEQ         ?SIRQ_PATCH_DIRECT
+                        BEQ         SYS_IRQ_BRK_PATCH_DIRECT
                         LDA         #SYSF_GO_FLAG_M
                         TRB         SYS_FLAGS
                         TSX
@@ -5424,17 +5719,22 @@ SYS_IRQ:                SEI             ; LOCK
                         ADC         #$04 ; DROP STALE RTS TRAMPOLINE FRAME
                         TAX
                         TXS
-                        BRA         ?SIRQ_RTI
-?SIRQ_PATCH_DIRECT:
+                        BRA         SYS_IRQ_HW_RTI
+SYS_IRQ_BRK_PATCH_DIRECT:
                         TSX
                         LDA         #<MONITOR
                         STA         $102,X ; STACKED PC LO (AFTER RTI)
                         LDA         #>MONITOR
                         STA         $103,X ; STACKED PC HI (AFTER RTI)
-?SIRQ_RTI:
+SYS_IRQ_HW_DISPATCH:
+SYS_IRQ_HW_RTI:
                         RTI             ; DONE
 
-STR_IRQ_NAME:           DB          "               **IRQ_PLACEHOLDER**", 0
+STR_IRQ_NAME:           DB          " > DISPATCH", 0
+STR_IRQ_BRK:            DB          "     BRK: ", 0
+STR_IRQ_HW:             DB          "     HW:  ", 0
+STR_IRQ_BRK_NAME:       DB          " **BRK_PLACEHOLDER**", 0
+STR_IRQ_HW_NAME:        DB          " **HW_PLACEHOLDER**", 0
 
 ; ----------------------------------------------------------------------------
 ; HARDWARE CONTROL
@@ -5470,6 +5770,38 @@ DELAY:                  PUSH        X, Y ; SAVE INDEXES
                         DEX             ; DEC HI
                         BNE         ?DELAY_LOOP ; WAIT HI
                         PULL        Y, X ; RESTORE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: DELAY_500MS
+; DESCRIPTION: APPROXIMATE 500MS DELAY (W65C02EDU CLOCK-CALIBRATED)
+; NOTES:
+;   - BUILDS ON DELAY PRIMITIVE.
+;   - TUNED FOR PROMPT BLINK CADENCE; ADJUST COUNT IF BOARD CLOCK CHANGES.
+; ----------------------------------------------------------------------------
+DELAY_500MS:            PUSH        A, X ; SAVE REGS
+                        LDX         #$16 ; 22 * DELAY ~= 500MS ON EDU
+?D500_LOOP:
+                        JSR         DELAY
+                        DEX
+                        BNE         ?D500_LOOP
+                        PULL        X, A ; RESTORE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: DELAY_333MS
+; DESCRIPTION: APPROXIMATE 333MS DELAY (W65C02EDU CLOCK-CALIBRATED)
+; NOTES:
+;   - BUILDS ON DELAY PRIMITIVE.
+;   - KEEPS DELAY_500MS AVAILABLE; THIS IS FOR FASTER BLINK/POLL CADENCE.
+; ----------------------------------------------------------------------------
+DELAY_333MS:            PUSH        A, X ; SAVE REGS
+                        LDX         #$0F ; 15 * DELAY ~= 333MS ON EDU
+?D333_LOOP:
+                        JSR         DELAY
+                        DEX
+                        BNE         ?D333_LOOP
+                        PULL        X, A ; RESTORE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -6056,6 +6388,20 @@ SHOW_VECTORS:
                         JSR         FOLLOW_CHAIN
                         PRT_CSTRING STR_IRQ_NAME
                         JSR         PRT_CRLF
+                        PRT_CSTRING STR_IRQ_BRK
+                        LDA         BRK_HOOK+2
+                        JSR         PRT_HEX
+                        LDA         BRK_HOOK+1
+                        JSR         PRT_HEX
+                        PRT_CSTRING STR_IRQ_BRK_NAME
+                        JSR         PRT_CRLF
+                        PRT_CSTRING STR_IRQ_HW
+                        LDA         HW_HOOK+2
+                        JSR         PRT_HEX
+                        LDA         HW_HOOK+1
+                        JSR         PRT_HEX
+                        PRT_CSTRING STR_IRQ_HW_NAME
+                        JSR         PRT_CRLF
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -6398,10 +6744,12 @@ BSO2_INIT:              DB          $0D, $0A, $0D, $0A
                         DB          "     ****         6 5 0 2           ****"
                         DB          $0D, $0A, $0D, $0A, 0
 OSI:                    DB          $0D, $0A, "C/W/M", 0
+OSI_CM:                 DB          $0D, $0A, "C/M", 0
 MSG_RESET_TRIGGERED:    DB          $0D, $0A, "RESET TRIGGERED", 0
 MSG_CLR_CONFIRM:        DB          $0D, $0A, "CLEAR MEMORY? (Y/N)", 0
 MSG_POWER_ON:           DB          $0D, $0A, "POWER ON", 0
 MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
+MSG_WARMSTART:          DB          "WARMSTART", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
                         DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0

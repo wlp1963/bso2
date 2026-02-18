@@ -122,7 +122,7 @@ make -C SRC clean
 
 ### Snapshot
 
-- `Now`: keep pushing terminal/console I/O flow, extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`), and add post-link check for `END_KDATA < $F000`.
+- `Now`: keep pushing terminal/console I/O flow and add post-link check for `END_KDATA < $F000`.
 - `Soon`: get the ACIA port on the EDU board running.
 - `Before publish`: complete XMODEM send/receive and staged vector commit flow.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.

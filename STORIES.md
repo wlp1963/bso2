@@ -24,6 +24,17 @@
 - Parked lane: anything not in the active lane gets a short parked note and stays deferred until explicitly promoted.
 - Promotion rule: parked items move to active only when the active lane has a clear stop point.
 
+### Deferred Design Goal: IRQ Routing Model (After IRQ Exploration)
+
+- Priority: important, but intentionally deferred until active IRQ experimentation is done.
+- Keep `SYS_IRQ` as the fixed BRK-vs-HW splitter.
+- Make sub-handler targets patchable/registerable through two explicit hooks:
+  - `BRK_HOOK` for BRK path handling.
+  - `HW_HOOK` for hardware IRQ path handling.
+- Keep the top-level IRQ dispatch entry stable; do not replace whole IRQ control flow first.
+- Optional future extension: add a pre-dispatch policy hook only after BRK/HW hook model is proven stable.
+- `V` output should continue to reflect this chain clearly (`IRQ -> DISPATCH`, then `BRK` and `HW` targets).
+
 Quoted guidance:
 "You explore broadly, then commit to concrete constraints. That balance is rare and useful."
 "Keep one active lane and one parking lot lane; everything not in active lane gets a dated TODO note and waits."
