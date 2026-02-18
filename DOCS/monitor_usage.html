@@ -229,6 +229,8 @@ DBG_TAG_BUF   6 bytes</p>
   <h3>9.4) Search Family Detail</h3>
   <ul>
     <li>Planned base forms: <code>S C START END &lt;text&gt;</code> and <code>S B START END &lt;pattern...&gt;</code>.</li>
+    <li>Current hit display format is <code>&lt;HIT_ADDR&gt;{ |*}&lt;ROW_BASE&gt;: ...</code>; <code>HIT_ADDR</code> is exact match start, and <code>ROW_BASE = HIT_ADDR &amp; $FFF0</code>.</li>
+    <li>Separator marker: <code>*</code> means the match continues into the next 16-byte row (for example <code>$B8AF*$B8A0</code> implies continuation at <code>$B8B0</code>).</li>
     <li><code>S C</code> mode: unquoted text stops at first whitespace.</li>
     <li><code>S C</code> mode: quoted delimiters can include <code>"</code>, <code>'</code>, and <code>`</code>.</li>
     <li><code>S C</code> mode: delimiter escape by doubling delimiter character.</li>
@@ -325,5 +327,3 @@ DBG_TAG_BUF   6 bytes</p>
   </ul>
 </body>
 </html>
-
-

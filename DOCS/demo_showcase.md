@@ -2,6 +2,10 @@
 
 Source: `DOCS/bso2 demo.log`
 
+Related focused search transcript:
+- Clean: [bso2 S demo.txt](./bso2%20S%20demo.txt)
+- Raw capture: [bso2 S demo.log](./bso2%20S%20demo.log)
+
 Homage: this demo honors your Ohio Scientific `C1P`, later expanded into a `C2P` with disk and `bso2` startup.
 
 ```text

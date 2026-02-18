@@ -3921,7 +3921,22 @@ SEARCH_PRINT_HIT:
                         JSR         PRT_HEX
                         LDA         PTR_DUMP_CUR
                         JSR         PRT_HEX
-                        JSR         PRT_SPACE
+
+        ; PRINT MATCH-TO-ROW SEPARATOR:
+        ;   ' ' = MATCH FULLY WITHIN ROW
+        ;   '*' = MATCH CONTINUES INTO NEXT 16-BYTE ROW
+                        LDA         PTR_DUMP_CUR
+                        AND         #$0F
+                        CLC
+                        ADC         F_COUNT
+                        CMP         #$11
+                        BCC         ?SPH_SEP_SPACE
+                        LDA         #'*'
+                        BRA         ?SPH_SEP_OUT
+?SPH_SEP_SPACE:
+                        LDA         #' '
+?SPH_SEP_OUT:
+                        JSR         WRITE_BYTE
 
         ; ROW BASE = HIT & $FFF0
                         LDA         PTR_DUMP_CUR

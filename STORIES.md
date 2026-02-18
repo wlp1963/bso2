@@ -52,3 +52,83 @@ Institutions using our service paid extra for that capability because it replace
 I wrote the indexing program and an RLE compression routine. RLE was a practical production tool in my ASMF1/System/36 COLD work, where throughput and overnight windows mattered more than perfect compression ratios. The implementation was rushed and not elegant, but it was successful in production. That same tradeoff applies here: favor simple, fast, streamable compression with manageable code complexity over maximum ratio. The first implementation in RPG did not finish overnight for even small-bank output windows, so I learned 5727-AS1 (System/36 assembler) and rewrote the full path. It was dramatically faster and drove a fully configured 5360 (max memory and four 10 SR disk drives) very hard.
 
 There are more stories around the PC-side loan upload tooling and related integration work; those can be added in later revisions.
+
+
+
+
+-S B 400 FFFF 4C 45 4E 20
+B470 B470: 4C 45 4E 20 28 4E 4F 20 | 43 52 43 29 00 0D 0A 20  |LEN (NO |CRC)...|
+B8AF B8A0: 41 44 44 52 20 4C 45 4E | 00 0D 0A 4C 20 42 20 4C  |ADDR LEN|...L B |
+WANT TO PLAY A GAME?
+
+ya ne ponymayu
+
+You’re seeing a boundary case in the new display format. I’ll check the exact bytes around $B8AF so I can show precisely why 4C 45 4E 20 matched there.
+
+Ran rg -n "B8A0|B8AF|B8B0|B470|4C 45 4E 20" SRC/bso2.lst -S
+
+
+Ran rg -n "LEN \(NO CRC\)|USAGE: L B ADDR LEN|LEN MUST BE 1..FFFF" SRC/bso2.asm -S
+
+
+Worked for 33s
+Понимаю. Тут все верно, просто второй матч пересекает границу строки дампа.
+
+S B 400 FFFF 4C 45 4E 20 ищет байты LEN<space>.
+
+Почему второй хит B8AF:
+
+B8AF это 4C (L) в конце строки B8A0.
+Следующие байты 45 4E 20 (E N <space>) уже на следующей строке (B8B0...), поэтому их не видно в том же ряду.
+То есть матч идет через границу ...B8AF | B8B0....
+Это соответствует строке "L B LEN MUST BE 1..FFFF" (bso2.asm (line 6554)), а первый хит B470 — из "LEN (NO CRC)" (bso2.asm (line 6482)).
+
+Проверь точечно:
+D B8AF B8B3
+там увидишь 4C 45 4E 20.
+
+
+lol, ya govorit ruski ploha,
+
+Да, понял тебя.
+
+Коротко:
+
+Всё работает правильно.
+B8AF — это L в конце 16-байтной строки.
+E N <space> идут сразу в следующей строке (B8B0...).
+Поэтому видно не все 4 байта в одном ряду, но матч реальный.
+Проверь:
+D B8AF B8B3
+должно показать 4C 45 4E 20.
+
+
+sorry, i know few word. translate.
+
+No problem.
+
+Short version:
+
+Your search is working correctly.
+At B8AF, the match starts at the last byte of that 16-byte row.
+The next bytes continue in the next row (B8B0...), so you don’t see all 4 bytes in one displayed line.
+So B8AF is a real hit, not a bug.
+To confirm, dump across the boundary:
+
+D B8AF B8B3
+You should see:
+
+4C 45 4E 20
+
+## Reminder Placeholder: Search Hit vs Row Base
+
+This is not a formal story entry. It is a reminder wrapped in a small tale and anchored in truth.
+
+When `S` prints two addresses as `<HIT_ADDR> <ROW_BASE>:`, the first is the true match start and the second is only the aligned 16-byte dump row (`HIT_ADDR & $FFF0`).
+
+A match can begin at the last byte of one row and continue into the next row. Example:
+- Hit starts at `$B8AF` (byte `4C`)
+- Remaining bytes continue at `$B8B0` (`45 4E 20`)
+
+That behavior is expected. If in doubt, verify with a direct boundary dump:
+`D B8AF B8B3`

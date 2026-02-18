@@ -88,11 +88,21 @@ make -C SRC clean
 - Printable reference: `DOCS/monitor_usage.pdf`
 - Zero-page reference: `ZERO_PAGE_USAGE.md`
 - Printable zero-page reference: `ZERO_PAGE_USAGE.pdf`
+- Warning: PDF artifacts may not always be regenerated; treat `DOCS/monitor_usage.html` and `ZERO_PAGE_USAGE.md` as canonical when there is any mismatch.
+
+## Search Output Note
+
+- `S` hit lines print two addresses: `<HIT_ADDR> <ROW_BASE>: ...`.
+- `HIT_ADDR` is the exact first byte of the match.
+- `ROW_BASE` is `HIT_ADDR & $FFF0`, and the 16 shown bytes start from that aligned base.
+- Separator marker: `*` means the match continues into the next 16-byte row (example: `$B8AF*$B8A0` implies continuation at `$B8B0`).
 
 ## Demo Showcase
 
 - **Curated demo walkthrough:** [DOCS/demo_showcase.md](DOCS/demo_showcase.md)
 - Raw terminal capture: [bso2 demo.log](./bso2%20demo.log)
+- Focused `S` command demo (clean): [DOCS/bso2 S demo.txt](DOCS/bso2%20S%20demo.txt)
+- Focused `S` command capture (raw): [DOCS/bso2 S demo.log](DOCS/bso2%20S%20demo.log)
 
 ## Development
 
