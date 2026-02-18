@@ -64,15 +64,13 @@ I wrote the indexing program and an RLE compression routine. RLE was a practical
 
 There are more stories around the PC-side loan upload tooling and related integration work; those can be added in later revisions.
 
-
-
-
+This is just somehting funny, I typed "I Dont Understand" in Russian, and AI started in Russian...
 -S B 400 FFFF 4C 45 4E 20
 B470 B470: 4C 45 4E 20 28 4E 4F 20 | 43 52 43 29 00 0D 0A 20  |LEN (NO |CRC)...|
 B8AF B8A0: 41 44 44 52 20 4C 45 4E | 00 0D 0A 4C 20 42 20 4C  |ADDR LEN|...L B |
 WANT TO PLAY A GAME?
 
-ya ne ponymayu
+ya ne ponymayu (this was a deferred prompt)
 
 You’re seeing a boundary case in the new display format. I’ll check the exact bytes around $B8AF so I can show precisely why 4C 45 4E 20 matched there.
 
@@ -99,7 +97,7 @@ D B8AF B8B3
 там увидишь 4C 45 4E 20.
 
 
-lol, ya govorit ruski ploha,
+lol, ya govorit ruski ploha. (I typed this too)
 
 Да, понял тебя.
 
@@ -114,7 +112,7 @@ D B8AF B8B3
 должно показать 4C 45 4E 20.
 
 
-sorry, i know few word. translate.
+sorry, i know few word. translate. (and this)
 
 No problem.
 
