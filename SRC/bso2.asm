@@ -71,13 +71,13 @@ PROTECT_HI_LIMIT        EQU         $04
                                         ; FORCED)
 
 ; --- FIXED ADDRESS CONTRACTS (LOW/HIGH) ---
-ZP_BASE_ADDR            EQU         $40
-ZP_GAME_ASK_ADDR        EQU         $88
-ZP_RST_HOOK_ADDR        EQU         $89
-ZP_NMI_HOOK_ADDR        EQU         $8C
-ZP_IRQ_HOOK_ADDR        EQU         $8F
-ZP_BRK_FLAG_ADDR        EQU         $92
-ZP_TERM_COLS_ADDR       EQU         $93
+ZP_BASE_ADDR            EQU         $30
+ZP_GAME_ASK_ADDR        EQU         $78
+ZP_RST_HOOK_ADDR        EQU         $80
+ZP_NMI_HOOK_ADDR        EQU         $83
+ZP_IRQ_HOOK_ADDR        EQU         $86
+ZP_BRK_FLAG_ADDR        EQU         $79
+ZP_TERM_COLS_ADDR       EQU         $7A
 ZP_GUARD_END_EXCL       EQU         $00FF ; KEEP USAGE <= $00FE
 HW_VEC_NMI_ADDR         EQU         $FFFA
 HW_VEC_RST_ADDR         EQU         $FFFC
@@ -151,7 +151,12 @@ GAME_TRIES:             DS          1   ; REMAINING TRIES FOR G NUMBER GAME
 GAME_GUESS:             DS          1   ; LAST PARSED GUESS FOR G NUMBER GAME
 RNG_STATE:              DS          1   ; LIVE RNG STIR STATE
                         DS          ZP_GAME_ASK_ADDR-* ; PIN ABI BYTE
-GAME_ASK_PENDING:       DS          1   ; FIXED @ $0088 (EXTERNAL/USER-FACING)
+GAME_ASK_PENDING:       DS          1   ; FIXED @ $0078 (EXTERNAL/USER-FACING)
+
+                        DS          ZP_BRK_FLAG_ADDR-* ; PIN DEBUG CONTEXT FLAG
+BRK_FLAG                DS          1
+                        DS          ZP_TERM_COLS_ADDR-* ; PIN TERMINAL WIDTH BYTE
+TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
 
                         DS          ZP_RST_HOOK_ADDR-* ; PIN RST TRAMPOLINE
 RST_HOOK:               DS          3   ; RST VECTOR JUMP
@@ -159,10 +164,6 @@ RST_HOOK:               DS          3   ; RST VECTOR JUMP
 NMI_HOOK:               DS          3   ; NMI VECTOR JUMP
                         DS          ZP_IRQ_HOOK_ADDR-* ; PIN IRQ TRAMPOLINE
 IRQ_HOOK:               DS          3   ; IRQ VECTOR JUMP
-                        DS          ZP_BRK_FLAG_ADDR-* ; PIN DEBUG CONTEXT FLAG
-BRK_FLAG                DS          1
-                        DS          ZP_TERM_COLS_ADDR-* ; PIN TERMINAL WIDTH BYTE
-TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
 
 ; PAGE0 GUARD: RESERVE UP TO $00FE; NEGATIVE DS FAILS IF WE EVER CROSS IT
                         DS          ZP_GUARD_END_EXCL-*
@@ -5738,14 +5739,14 @@ FOLLOW_CHAIN:
                         BRA         ?CHAIN_LOOP
 
 ?CHECK_BRIDGE_2:
-        ; --- BRIDGE 2: INIT_RST -> RST_HOOK ($0089) ---
+        ; --- BRIDGE 2: INIT_RST -> RST_HOOK ($0080) ---
                         LDA         PTR_LEG+1
                         CMP         #>INIT_RST
                         BNE         ?NORMAL_TRACE
                         LDA         PTR_LEG
                         CMP         #<INIT_RST
                         BNE         ?NORMAL_TRACE
-                        LDA         #<RST_HOOK ; Force to ZP hook $89
+                        LDA         #<RST_HOOK ; Force to ZP hook $80
                         STA         PTR_LEG
                         LDA         #>RST_HOOK
                         STA         PTR_LEG+1
@@ -6163,12 +6164,12 @@ MSG_HELP_FULL_37:       DB          $0D, $0A, $0D, $0A
                         DB          "  HW VECTORS @     N:FFFA R:FFFC I:FFFE"
                         DB          0
 MSG_HELP_FULL_38:       DB          $0D, $0A
-                        DB          "  ZP VECTORS @     N:0089 R:008C I:008F"
+                        DB          "  ZP VECTORS @     N:0083 R:0080 I:0086"
                         DB          0
 MSG_HELP_FULL_39:       DB          $0D, $0A
-                        DB          "  GAME PRMPT @ $88 !M 88 01=SET  !M 88 00=CL"
+                        DB          "  GAME PRMPT @ $78 !M 78 01=SET  !M 78 00=CL"
                         DB          "EAR", $0D, $0A
-                        DB          "  TERM COL   @ $93 !M 93 28/50/84 (40/80/13"
+                        DB          "  TERM COL   @ $7A !M 7A 28/50/84 (40/80/13"
                         DB          "2)", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
