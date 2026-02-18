@@ -2,7 +2,7 @@
 
 `bso2` is a serial monitor for the WDC W65C02EDU platform.
 
-It provides boot flow control, memory tools, an interactive mini-assembler, disassembly, execution/resume debug flow, and vector inspection for a 65C02-based system.
+It provides startup boot-flow policy (power-on vs reset menus), memory tools, an interactive mini-assembler, disassembly, execution/resume debug flow, and vector/IRQ sub-dispatch inspection for a 65C02-based system.
 
 > **Demo first:** [Open the curated `bso2` demo walkthrough](DOCS/demo_showcase.md)
 
