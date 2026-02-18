@@ -6389,6 +6389,15 @@ SHOW_VECTORS:
                         PRT_CSTRING STR_IRQ_NAME
                         JSR         PRT_CRLF
                         PRT_CSTRING STR_IRQ_BRK
+                        LDA         #'['
+                        JSR         WRITE_BYTE
+                        LDA         #>ZP_BRK_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<ZP_BRK_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #']'
+                        JSR         WRITE_BYTE
+                        PRT_CSTRING STR_ARROW
                         LDA         BRK_HOOK+2
                         JSR         PRT_HEX
                         LDA         BRK_HOOK+1
@@ -6396,6 +6405,15 @@ SHOW_VECTORS:
                         PRT_CSTRING STR_IRQ_BRK_NAME
                         JSR         PRT_CRLF
                         PRT_CSTRING STR_IRQ_HW
+                        LDA         #'['
+                        JSR         WRITE_BYTE
+                        LDA         #>ZP_HW_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #<ZP_HW_HOOK_ADDR
+                        JSR         PRT_HEX
+                        LDA         #']'
+                        JSR         WRITE_BYTE
+                        PRT_CSTRING STR_ARROW
                         LDA         HW_HOOK+2
                         JSR         PRT_HEX
                         LDA         HW_HOOK+1
