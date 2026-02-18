@@ -51,7 +51,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - `ZERO_PAGE_USAGE.md`: zero-page map and reference index
 - `ZERO_PAGE_USAGE.pdf`: printable zero-page reference
 - `DOCS/demo_showcase.md`: curated demo script from live session
-- `bso2 demo.log`: raw PuTTY capture used for demo/showcase
+- `bso2 demo.txt`: raw PuTTY capture used for demo/showcase
 
 ## Prerequisites
 
@@ -112,9 +112,9 @@ make -C SRC clean
 ## Demo Showcase
 
 - **Curated demo walkthrough:** [DOCS/demo_showcase.md](DOCS/demo_showcase.md)
-- Raw terminal capture: [bso2 demo.log](DOCS/bso2%20demo.log)
+- Raw terminal capture: [bso2 demo.txt](DOCS/bso2%20demo.txt)
 - Focused `S` command demo (clean): [DOCS/bso2 S demo.txt](DOCS/bso2%20S%20demo.txt)
-- Focused `S` command capture (raw): [DOCS/bso2 S demo.log](DOCS/bso2%20S%20demo.log)
+- Focused `S` command capture (raw): [DOCS/bso2 S demo.txt](DOCS/bso2%20S%20demo.txt)
 - Hello World S28 demo transcript: [DOCS/hello-world.txt](DOCS/hello-world.txt)
 - Hello World source: [SRC/hello-world.asm](SRC/hello-world.asm)
 - Hello World S-record payload: [SRC/hello-world.s28](SRC/hello-world.s28)
