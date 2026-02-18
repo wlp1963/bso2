@@ -5730,7 +5730,7 @@ SYS_IRQ_HW_DISPATCH:
 SYS_IRQ_HW_RTI:
                         RTI             ; DONE
 
-STR_IRQ_NAME:           DB          " > DISPATCH", 0
+STR_IRQ_NAME:           DB          " > BSO2_IRQ_BRK_HW_DISPATCH", 0
 STR_IRQ_BRK:            DB          "     BRK: ", 0
 STR_IRQ_HW:             DB          "     HW:  ", 0
 STR_IRQ_BRK_NAME:       DB          " **BRK_PLACEHOLDER**", 0

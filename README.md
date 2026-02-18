@@ -108,6 +108,7 @@ make -C SRC clean
 
 ## Development
 
+- Changelog: `CHANGELOG.md`
 - Contributor guide: `CONTRIBUTING.md`
 - Security policy: `SECURITY.md`
 - Community conduct: `CODE_OF_CONDUCT.md`
