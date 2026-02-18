@@ -2,19 +2,13 @@
 
 Status: TOTALLY UNTESTED.
 
-Unified Linux GNU C host utility for bso2 serial workflows.
+Poor, poor, poor man's 5250 data stream / terminal emulation / file transfer for bso2 serial workflows.
 
 ## Capabilities
 
 - Terminal mode (`term`) with local quit char (default `0x1D`, Ctrl-])
 - Raw binary load (`lb-send`) for monitor command `L B ADDR LEN`
-- WDCMONv2 flash protocol helpers:
-- `flash-read`
-- `flash-write`
-- `flash-clear`
-- `flash-check`
-- `flash-exec`
-- `flash-update-monitor`
+- IBM-ish data-stream / terminal emulation / file-transfer direction (experimental)
 
 ## Build
 
@@ -58,9 +52,4 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 ```bash
 tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 tools/bso2com/bso2com lb-send payload.bin --addr 1000
-tools/bso2com/bso2com flash-check
-tools/bso2com/bso2com flash-clear --force --confirm ERASE
-tools/bso2com/bso2com flash-write --addr 8000 --in app.bin --force --confirm WRITE
-tools/bso2com/bso2com flash-read --addr 8000 --len 0100 --out dump.bin
-tools/bso2com/bso2com flash-update-monitor --in monitor.bin --force --confirm UPDATE
 ```

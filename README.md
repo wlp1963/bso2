@@ -40,8 +40,6 @@ It provides boot flow control, memory tools, an interactive mini-assembler, disa
 - `SRC/bso2.asm`: main monitor source
 - `SRC/macros.inc`: assembler macros
 - `SRC/Makefile`: build/upload/clean targets
-- `tools/bso2com/bso2com.c`: unified Linux GNU C serial utility
-- `tools/bso2com/Makefile`: build rules for `bso2com`
 - `DOCS/monitor_usage.html`: detailed command reference
 - `DOCS/monitor_usage.pdf`: printable/offline command reference
 - `ZERO_PAGE_USAGE.md`: zero-page map and reference index
@@ -77,19 +75,6 @@ Clean:
 make -C SRC clean
 ```
 
-## Host Tool (`bso2com`)
-
-Linux GNU C helper for terminal mode, `L B` loading, and flash protocol actions.
-
-```bash
-make -C tools/bso2com
-tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
-```
-
-- Source: `tools/bso2com/bso2com.c`
-- Build rules: `tools/bso2com/Makefile`
-- Full protocol/policy details: `DOCS/monitor_usage.html`
-
 ## Monitor Commands
 
 - Quick list: `? H Z W D U A X G R N M F L C Q V`
@@ -119,9 +104,9 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 
 ### Snapshot
 
-- `Now`: wrap `WDCMONv2` FLASH calls behind `bso2` wrappers/trampolines, extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`), and add post-link check for `END_KDATA < $F000`.
+- `Now`: keep pushing terminal/console I/O flow, extend `V` IRQ output with sub-dispatch lines (`BRK`/`HW`), and add post-link check for `END_KDATA < $F000`.
 - `Soon`: get the ACIA port on the EDU board running.
-- `Before publish`: complete XMODEM send/receive, staged vector commit flow, and critical FLASH/vector safety behaviors.
+- `Before publish`: complete XMODEM send/receive and staged vector commit flow.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
 ## Legal
@@ -137,3 +122,18 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 ## License
 
 MIT. See `LICENSE`.
+
+## Host Tool (`bso2com`)
+
+Poor, poor, poor man's 5250 data stream / terminal emulation / file transfer for `bso2`.
+
+Long-term direction: terminal/console/I-O first, with IBM-ish data-stream and file-transfer experiments.
+
+```bash
+make -C tools/bso2com
+tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
+```
+
+- Source: `tools/bso2com/bso2com.c`
+- Build rules: `tools/bso2com/Makefile`
+- Full protocol/policy details: `DOCS/monitor_usage.html`
