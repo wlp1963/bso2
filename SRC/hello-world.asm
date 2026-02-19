@@ -8,7 +8,7 @@
 
 			INCLUDE	   MACROS.INC
 
-PRT_C_STRING:		EQU	   $AEC7
+PRT_C_STRING:		EQU	   $Af57
 WDC_WRITE_BYTE          EQU        $F803 ; ROM SERIAL OUT
 STR_PTR  	        EQU	   $0036
 
@@ -19,7 +19,7 @@ START:
         BRK 00
 	ldx #00
 ?loop	txa
-	jsr $aea6 ; prt_hex
+	jsr $af36 ; prt_hex
 	inx
 	bne ?loop
 	brk 01

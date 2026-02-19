@@ -87,6 +87,8 @@ M = enter monitor</p>
     <tr><td><code>M</code></td><td><code>M [START [B0..B15]]</code></td><td>Modify/deposit memory. Inline deposit supports up to 16 bytes.</td><td>Interactive mode: <code>CR/LF = next</code>, <code>.</code> ends. CRLF pair counts as one next.</td></tr>
     <tr><td><code>F</code></td><td><code>F START END B0..B15</code></td><td>Fill inclusive range with repeating 1..16 byte pattern.</td><td>No interactive mode. Verifies each write.</td></tr>
     <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
+    <tr><td><code>S</code></td><td><code>S B START END ...</code> or <code>S C START END TEXT</code></td><td>Search memory for byte patterns or text.</td><td>Prints hit address plus aligned row base context.</td></tr>
+    <tr><td><code>L</code></td><td><code>L S</code> | <code>L G S</code> | <code>L B ADDR LEN</code></td><td>Load Motorola S-records or raw bytes.</td><td><code>L G S</code>/<code>LGS</code> auto-jumps to the S7/S8/S9 start address after successful load.</td></tr>
     <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code></td><td>Force-prefix for protected commands.</td><td>Allows access to protected low RAM (<code>$0000-$03FF</code>).</td></tr>
     <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
     <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0080] &gt; 800D</code>. IRQ now appends sub-dispatch lines: <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
@@ -269,7 +271,6 @@ DBG_TAG_BUF   6 bytes</p>
   <ul>
     <li>Before publish, provide both XMODEM receive and send paths.</li>
     <li>Preferred forms: <code>X R ...</code> and <code>X S ...</code> with fused aliases (<code>XR</code>, <code>XS</code>).</li>
-    <li>Planned loader workflow shortcut: <code>L G S</code> / <code>LGS</code> (load Motorola S-record stream, then auto-jump to the S7/S8/S9 start address).</li>
   </ul>
 
   <h3>9.6) Vector + Safety Direction (Pre-Publish Requirement)</h3>

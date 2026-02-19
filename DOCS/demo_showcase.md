@@ -17,9 +17,9 @@ Highlights from the verification capture:
 - `L S LOAD COMPLETE`
 - `HELLO, WORLD`
 
-Planned workflow shortcut (not implemented yet):
+Workflow shortcut now available:
 - `L G S` / `LGS` = load Motorola S-records, then auto-run the loaded entry point.
-- Current workflow remains: `L S` then `X1000` (or explicit start address).
+- Manual workflow still works: `L S` then `X1000` (or explicit start address).
 
 ```text
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2026.02.17 03:49:55 =~=~=~=~=~=~=~=~=~=~=~=

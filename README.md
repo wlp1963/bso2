@@ -21,6 +21,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - Table-driven command dispatcher
 - Ring-buffer command parser
 - Commands: `? H Z W D U A X G I R N M F S L C Q V` ([reference](DOCS/monitor_usage.html))
+- `L G S` / `LGS` load-go support for Motorola S-record workflows
 - ZP map reference: [ZERO_PAGE_USAGE.md](ZERO_PAGE_USAGE.md) ([PDF](ZERO_PAGE_USAGE.pdf))
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with `CURR`/`NEXT` instruction lines and `STATE` line
@@ -138,7 +139,7 @@ make -C SRC clean
 
 - `Now`: keep pushing terminal/console I/O flow and add post-link check for `END_KDATA < $F000`.
 - `Soon`: get the ACIA port on the EDU board running.
-- `Before publish`: complete XMODEM send/receive, add `L G S` / `LGS` load-go S-record workflow, and staged vector commit flow.
+- `Before publish`: complete XMODEM send/receive and staged vector commit flow.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
 ## Legal

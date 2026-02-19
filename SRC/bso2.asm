@@ -247,6 +247,8 @@ RPN_LAST_REM:           DS          2   ; I C LAST DIV REMAINDER (16-BIT)
 RPN_REM_VALID:          DS          1   ; 1 IF LAST TOKENIZED RESULT CAME FROM DIV
 RPN_STACK:              DS          RPN_STACK_DEPTH*2 ; I C VALUE STACK (LO/HI)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
+SREC_FIRST_ADDR:        DS          2   ; FIRST S1/S2/S3 ADDRESS FOR LGS FALLBACK
+SREC_FIRST_VALID:       DS          1   ; 1 IF SREC_FIRST_ADDR IS VALID
 
                         CODE
 
@@ -2466,7 +2468,7 @@ GAME_PRINT_1_10:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_LOAD
 ; DESCRIPTION: SERIAL LOADER COMMAND DISPATCH
-; USAGE: L S | L B <ADDR> <LEN>
+; USAGE: L S | L G S | L B <ADDR> <LEN>
 ; ----------------------------------------------------------------------------
 CMD_DO_LOAD:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
@@ -2474,6 +2476,8 @@ CMD_DO_LOAD:
                         LDA         CMD_LINE,X
                         CMP         #'S'
                         BEQ         ?CL_PARSE_S
+                        CMP         #'G'
+                        BEQ         ?CL_PARSE_G
                         CMP         #'B'
                         BEQ         ?CL_PARSE_B
                         BRA         ?CL_USAGE
@@ -2483,11 +2487,70 @@ CMD_DO_LOAD:
                         LDA         CMD_LINE,X
                         BNE         ?CL_USAGE
                         JMP         CMD_DO_LOAD_SREC
+?CL_PARSE_G:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'S'
+                        BNE         ?CL_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CL_USAGE
+                        JMP         CMD_DO_LOAD_SREC_GO
 ?CL_PARSE_B:
                         INX
                         JMP         CMD_DO_LOAD_BIN
 ?CL_USAGE:
                         PRT_CSTRING MSG_L_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_DO_LOAD_SREC_GO
+; DESCRIPTION: LOADS S-RECORDS (L S) AND AUTO-JUMPS TO TERM RECORD START ADDR
+; USAGE: L G S | LGS | LG S
+; NOTES:
+;   - AUTO-GO RUNS ONLY AFTER SUCCESSFUL S-RECORD TERMINATION/CHECKSUM.
+;   - TARGET ENTRY ADDRESS IS THE PARSED S7/S8/S9 ADDRESS (LOW 16-BIT).
+; ----------------------------------------------------------------------------
+CMD_DO_LOAD_SREC_GO:
+                        JSR         CMD_DO_LOAD_SREC
+                        BCS         ?LGS_DONE ; LOAD ALREADY PRINTED ERROR/ABORT
+                        ; If S7/S8/S9 entry is zero, fall back to first S1/S2/S3
+                        ; data record address captured during load.
+                        LDA         PTR_TEMP
+                        ORA         PTR_TEMP+1
+                        BNE         ?LGS_USE_TERM
+                        LDA         SREC_FIRST_VALID
+                        BNE         ?LGS_USE_FIRST
+                        PRT_CSTRING MSG_LGS_NO_ENTRY
+                        BRA         ?LGS_DONE
+?LGS_USE_FIRST:
+                        LDA         SREC_FIRST_ADDR
+                        STA         PTR_LEG
+                        LDA         SREC_FIRST_ADDR+1
+                        STA         PTR_LEG+1
+                        BRA         ?LGS_GO
+?LGS_USE_TERM:
+                        LDA         PTR_TEMP
+                        STA         PTR_LEG
+                        LDA         PTR_TEMP+1
+                        STA         PTR_LEG+1
+?LGS_GO:
+                        LDA         #SYSF_GO_FLAG_M
+                        TSB         SYS_FLAGS
+                        LDA         PTR_LEG
+                        SEC
+                        SBC         #$01
+                        STA         PTR_LEG
+                        LDA         PTR_LEG+1
+                        SBC         #$00
+                        STA         PTR_LEG+1
+                        LDA         PTR_LEG+1
+                        PHA
+                        LDA         PTR_LEG
+                        PHA
+?LGS_DONE:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2587,9 +2650,15 @@ CMD_DO_LOAD_BIN:
 ;   - S1/S2/S3 DATA RECORDS ARE WRITTEN TO MEMORY.
 ;   - S0/S5/S6 ARE PARSED+CHECKED BUT DATA IS IGNORED.
 ;   - S7/S8/S9 TERMINATES LOAD AFTER CHECKSUM VALIDATION.
-;   - ADDRESSES ABOVE $FFFF (S2/S3 WITH NONZERO UPPER BYTES) ARE REJECTED.
+;   - DATA/TERM ADDRESSES ABOVE $FFFF ARE REJECTED.
+; OUTPUT:
+;   - C=0 ON SUCCESSFUL TERM RECORD + CHECKSUM.
+;   - C=1 ON ABORT/PARSE/CHECKSUM/ADDRESS ERROR.
 ; ----------------------------------------------------------------------------
 CMD_DO_LOAD_SREC:
+                        STZ         SREC_FIRST_VALID
+                        STZ         SREC_FIRST_ADDR
+                        STZ         SREC_FIRST_ADDR+1
                         PRT_CSTRING MSG_LS_READY
 
 ?LS_REC_LOOP:
@@ -2618,9 +2687,11 @@ CMD_DO_LOAD_SREC:
                         BEQ         ?LS_USER_ABORT
                         PRT_CSTRING MSG_LS_TYPE_ERR
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 ?LS_USER_ABORT:
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 ?LS_T0:
                         LDA         #$02
@@ -2770,16 +2841,30 @@ CMD_DO_LOAD_SREC:
                         STA         PTR_TEMP
 
 ?LS_ADDR_DONE:
-        ; S1/S2/S3 MUST FIT 16-BIT ADDR SPACE.
+        ; DATA/TERM ADDRESSES MUST FIT 16-BIT ADDR SPACE.
                         LDA         SREC_MODE
-                        CMP         #SREC_MODE_DATA
-                        BNE         ?LS_AFTER_ADDR_CHECK
+                        CMP         #SREC_MODE_SKIP
+                        BEQ         ?LS_AFTER_ADDR_CHECK
                         LDA         PTR_LEG
                         BEQ         ?LS_AFTER_ADDR_CHECK
                         PRT_CSTRING MSG_LS_ADDR_ERR
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 ?LS_AFTER_ADDR_CHECK:
+        ; Capture first S1/S2/S3 address for LGS fallback when S7/S8/S9 is 0000.
+                        LDA         SREC_MODE
+                        CMP         #SREC_MODE_DATA
+                        BNE         ?LS_AFTER_FIRST_CAPTURE
+                        LDA         SREC_FIRST_VALID
+                        BNE         ?LS_AFTER_FIRST_CAPTURE
+                        LDA         PTR_TEMP
+                        STA         SREC_FIRST_ADDR
+                        LDA         PTR_TEMP+1
+                        STA         SREC_FIRST_ADDR+1
+                        LDA         #$01
+                        STA         SREC_FIRST_VALID
+?LS_AFTER_FIRST_CAPTURE:
 
         ; TERMINATION RECORDS SHOULD HAVE NO DATA BYTES.
                         LDA         SREC_MODE
@@ -2805,6 +2890,7 @@ CMD_DO_LOAD_SREC:
                         JSR         SREC_WRITE_BYTE
                         BCC         ?LS_DATA_NEXT
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 ?LS_DATA_NEXT:
                         DEC         SREC_REMAIN
@@ -2821,6 +2907,7 @@ CMD_DO_LOAD_SREC:
                         BEQ         ?LS_CKSUM_OK
                         PRT_CSTRING MSG_LS_CHKSUM_ERR
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 ?LS_CKSUM_OK:
                         LDA         SREC_MODE
@@ -2829,11 +2916,13 @@ CMD_DO_LOAD_SREC:
                         JMP         ?LS_REC_LOOP
 ?LS_DONE:
                         PRT_CSTRING MSG_LS_DONE
+                        CLC
                         RTS
 
 ?LS_PARSE_ERR:
                         PRT_CSTRING MSG_LS_PARSE_ERR
                         PRT_CSTRING MSG_LS_ABORT
+                        SEC
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -7400,8 +7489,8 @@ MSG_HELP_FULL_20:       DB          $0D, $0A
                         DB          "    NOTE: CRLF PAIR COUNTS AS ONE NEXT"
                         DB          0
 MSG_HELP_FULL_26:       DB          $0D, $0A
-                        DB          "  L S              LOAD MOTOROLA S-RECORD"
-                        DB          "S", 0
+                        DB          "  L S / L G S      LOAD S-RECORDS (L G S A"
+                        DB          "UTO-RUNS ENTRY)", 0
 MSG_HELP_FULL_27:       DB          $0D, $0A
                         DB          "  L B A L          LOAD RAW BYTES TO ADDR/"
                         DB          "LEN (NO CRC)", 0
@@ -7485,7 +7574,7 @@ MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
 MSG_N_USAGE:            DB          $0D, $0A, "USAGE: N", 0
 MSG_GAME_USAGE:         DB          $0D, $0A, "USAGE: G", 0
 MSG_L_USAGE:            DB          $0D, $0A
-                        DB          "USAGE: L S | L B ADDR LEN", 0
+                        DB          "USAGE: L S | L G S | L B ADDR LEN", 0
 MSG_LB_USAGE:           DB          $0D, $0A, "USAGE: L B ADDR LEN", 0
 MSG_LB_LEN_ERR:         DB          $0D, $0A, "L B LEN MUST BE 1..FFFF", 0
 MSG_LB_RANGE_ERR:       DB          $0D, $0A, "L B RANGE ERROR", 0
@@ -7519,6 +7608,8 @@ MSG_LS_PARSE_ERR:       DB          $0D, $0A, "L S RECORD FORMAT ERROR", 0
 MSG_LS_CHKSUM_ERR:      DB          $0D, $0A, "L S CHECKSUM ERROR", 0
 MSG_LS_TYPE_ERR:        DB          $0D, $0A, "L S UNSUPPORTED RECORD TYPE", 0
 MSG_LS_ADDR_ERR:        DB          $0D, $0A, "L S ADDRESS OUT OF 16-BIT RANGE", 0
+MSG_LGS_NO_ENTRY:       DB          $0D, $0A
+                        DB          "L G S NO ENTRY ADDRESS; USE X START", 0
 MSG_VERIFY_ERR_SUFFIX:  DB          " VERIFY FAILED AT ADDR ", 0
 MSG_Q_WAIT:             DB          $0D, $0A, "Q HALT - RESET/NMI TO RESUME"
                         DB          0

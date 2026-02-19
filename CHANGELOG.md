@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Added independently assembled Hello World demo artifacts (`SRC/hello-world.asm`, `SRC/hello-world.s28`) and verification transcript (`DOCS/hello-world.txt`) for S28 load-and-run flow.
+- Added `L G S` / `LGS` load-go workflow: load Motorola S-records and auto-execute on successful load.
 - Added boot decision truth-table documentation for power-on and reset startup paths.
 - Added patchable IRQ sub-dispatch trampolines:
   - `BRK_HOOK` at `$0089-$008B`
@@ -27,6 +28,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Fixed prompt LED blink state corruption by moving blink state/counter handling to stable ZP scratch.
 - Clarified and documented row-boundary search hit behavior.
+- Fixed `LGS` auto-run behavior for S-records with zero termination entry (`S7/S8/S9 = 0000`) by falling back to the first data-record address.
 
 ### Docs
 - Updated startup behavior, IRQ dispatch details, and fixed-byte maps in `DOCS/monitor_usage.html`.
