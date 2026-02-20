@@ -24,6 +24,8 @@ make -C SRC all
 
 - Keep source ASCII unless there is a strong reason not to.
 - Preserve existing assembly style and label naming patterns.
+- Prefer `INCLUDE EQUATES.INC` for monitor-oriented sources; it already includes `MACROS.INC`.
+- Include `MACROS.INC` directly only for standalone code that intentionally skips project equates.
 - Add comments for non-obvious logic, not for line-by-line narration.
 - Avoid broad refactors unrelated to the requested behavior.
 
@@ -32,6 +34,7 @@ make -C SRC all
 - Build must pass (`make -C SRC all`).
 - If behavior changed, include at least one monitor transcript snippet in the PR description.
 - If help/output text changed, update `DOCS/monitor_usage.html` and regenerate `DOCS/monitor_usage.pdf`.
+- If zero-page documentation changed, update `ZERO_PAGE_USAGE.md` and regenerate `ZERO_PAGE_USAGE.pdf`.
 
 ## Pull Request Checklist
 

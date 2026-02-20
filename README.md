@@ -6,6 +6,10 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 
 > **Demo first:** [Open the curated `bso2` demo walkthrough](DOCS/demo_showcase.md)
 
+> **Project status:** Commit cadence may temporarily slow while intensive testing is underway (including a known bug hunt), userland experimentation is prioritized, and stable paths (`PRT_HEX`, `DEBUG`, etc.) are being moved into high FLASH (`$EFFF` and down).
+>
+> **Current release marker:** `R0M0V0I00`
+
 ## Name
 
 - `bso2` `on` `6502` `is` `Basic System Operations/2`
@@ -20,7 +24,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher
 - Ring-buffer command parser
-- Commands: `? H Z W D U A X G I R N M F S L C Q V` ([reference](DOCS/monitor_usage.html))
+- Commands: `? H Z T W D U A X G I R N M F S L C Q V` ([reference](DOCS/monitor_usage.html))
 - `L G S` / `LGS` load-go support for Motorola S-record workflows
 - ZP map reference: [ZERO_PAGE_USAGE.md](ZERO_PAGE_USAGE.md) ([PDF](ZERO_PAGE_USAGE.pdf))
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
@@ -43,6 +47,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 ## Repository Layout
 
 - `SRC/bso2.asm`: main monitor source
+- `SRC/EQUATES.INC`: shared hardware/address equates and constants (includes `MACROS.INC`)
 - `SRC/macros.inc`: assembler macros
 - `SRC/hello-world.asm`: standalone Hello World demo source
 - `SRC/hello-world.s28`: generated Motorola S-record payload for Hello World demo
@@ -64,6 +69,12 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
   - Python
   - `C:\Program Files\wdc\Tools\bin\wdc_interface.py`
 - Serial port in `Makefile` is currently `COM3`
+
+## Assembly Include Model
+
+- Preferred include for monitor builds is `INCLUDE EQUATES.INC`.
+- `SRC/EQUATES.INC` automatically includes `MACROS.INC`.
+- Include `MACROS.INC` directly only for standalone sources that intentionally do not use project equates.
 
 ## Quick Start
 
@@ -91,7 +102,7 @@ make -C SRC clean
 
 ## Monitor Commands
 
-- Quick list: `? H Z W D U A X G I R N M F S L C Q V`
+- Quick list: `? H Z T W D U A X G I R N M F S L C Q V`
 - Full reference (commands, edge cases, safety behavior): `DOCS/monitor_usage.html`
 - Printable reference: `DOCS/monitor_usage.pdf`
 - Zero-page reference: `ZERO_PAGE_USAGE.md`
@@ -159,7 +170,7 @@ make -C SRC clean
 - Disclosure: this is an independent personal project; no compensation, sponsorship, or endorsement has been received from Western Design Center, Inc.
 - This repository does not redistribute WDC tool binaries or WDC ROM images.
 - Third-party references are listed in `THIRD_PARTY_NOTICES.md`.
-- `WDCMONv2` usage in this project is intended as wrapper/trampoline integration; any direct source reuse must be covered by upstream license/permission and documented in `THIRD_PARTY_NOTICES.md`.
+- `WDCMONv2` usage in this project is intended as wrapper/trampoline integration, but `WDCMONv2` FLASH programming routines are currently tied to Python tooling and this will require a rethink. Any direct source reuse must be covered by upstream license/permission and documented in `THIRD_PARTY_NOTICES.md`.
 
 ## License
 

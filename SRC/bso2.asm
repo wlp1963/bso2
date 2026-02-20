@@ -10,7 +10,7 @@
 ; ****************************************************************************
 ; * *
 ; * BSO2 MONITOR FOR W65C02EDU                                               *
-; * REV: 2.0 (VECTOR INIT ON RESET)                                          *
+; * VERSION: R0M0V0I00                                                       *
 ; * *
 ; ****************************************************************************
 
@@ -22,83 +22,11 @@
                         PW          132
                         TITLE       'BSO2'
 
-                        INCLUDE     MACROS.INC
-
-; --- EXTERNAL WDC ROM ENTRY POINTS ---
-WDC_INIT_SERIAL         EQU         $F800 ; ROM SERIAL INIT
-WDC_WRITE_BYTE          EQU         $F803 ; ROM SERIAL OUT
-WDC_READ_BYTE           EQU         $F806 ; ROM SERIAL IN
-WDC_CHECK_BYTE          EQU         $F809 ; ROM SERIAL STATUS
-
-; --- W65C21 PIA REGISTERS ---
-PIA                     EQU         $7FA0 ; PIA BASE ADDR
-PIA_PA                  EQU         PIA ; PORT A DATA
-PIA_DDRA                EQU         PIA ; PORT A DIR
-PIA_CRA                 EQU         PIA+1 ; PORT A CTRL
-PIA_PB                  EQU         PIA+2 ; PORT B DATA
-PIA_DDRB                EQU         PIA+2 ; PORT B DIR
-PIA_CRB                 EQU         PIA+3 ; PORT B CTRL
-
-; --- LED CONSTANTS ---
-LED0                    EQU         %00000001 ; LED BIT 0
-LED1                    EQU         %00000010 ; LED BIT 1
-LED2                    EQU         %00000100 ; LED BIT 2
-LED3                    EQU         %00001000 ; LED BIT 3
-LED4                    EQU         %00010000 ; LED BIT 4
-LED5                    EQU         %00100000 ; LED BIT 5
-LED6                    EQU         %01000000 ; LED BIT 6
-LED7                    EQU         %10000000 ; LED BIT 7
-LED_ALL                 EQU         %11111111 ; ALL LEDS ON
-LED_NONE                EQU         %00000000 ; ALL LEDS OFF
-
-LED_DATA                EQU         PIA_PA ; MAP LEDS TO PORT A
-LED_DDR                 EQU         PIA_DDRA ; DIR REG PORT A
-
-; --- INPUT BUFFER/PARSER CONFIG ---
-RBUF_SIZE               EQU         32  ; CONFIGURABLE INPUT RING BUFFER SIZE
-CMD_MAX_LEN             EQU         31  ; MAX COMMAND LENGTH (EXCLUDING NULL)
-SREC_MODE_SKIP          EQU         $00
-SREC_MODE_DATA          EQU         $01
-SREC_MODE_TERM          EQU         $02
-DBG_MODE_JSR            EQU         0
-DBG_MODE_NMI            EQU         1
-DBG_MODE_IRQ            EQU         2
-DBG_MODE_BRK            EQU         3
-MOD_MAX_BYTES           EQU         16  ; MAX INLINE BYTE DEPOSITS FOR M
-F_MAX_BYTES             EQU         16  ; MAX BYTE PATTERN LENGTH FOR F
-PROTECT_HI_LIMIT        EQU         $04
-                                        ; ADDR < $0400 IS PROTECTED (UNLESS
-                                        ; FORCED)
-
-; --- FIXED ADDRESS CONTRACTS (LOW/HIGH) ---
-ZP_BASE_ADDR            EQU         $30
-ZP_GAME_ASK_ADDR        EQU         $78
-ZP_RST_HOOK_ADDR        EQU         $80
-ZP_NMI_HOOK_ADDR        EQU         $83
-ZP_IRQ_HOOK_ADDR        EQU         $86
-ZP_BRK_HOOK_ADDR        EQU         $89
-ZP_HW_HOOK_ADDR         EQU         $8C
-ZP_BRK_FLAG_ADDR        EQU         $79
-ZP_TERM_COLS_ADDR       EQU         $7A
-ZP_TERM_TIMEOUT_ADDR    EQU         $7B
-ZP_TERM_WAIT_LED_ADDR   EQU         $7E
-ZP_TERM_WAIT_SECS_ADDR  EQU         $7F
-ZP_GUARD_END_EXCL       EQU         $0090 ; KEEP USAGE <= $008F
-USER_ZP_BASE_ADDR       EQU         $90
-USER_ZP_END_ADDR        EQU         $FF
-HW_VEC_NMI_ADDR         EQU         $FFFA
-HW_VEC_RST_ADDR         EQU         $FFFC
-HW_VEC_IRQ_ADDR         EQU         $FFFE
-TERM_COLS_40            EQU         $28
-TERM_COLS_80            EQU         $50
-TERM_COLS_132           EQU         $84
-TERM_WIDTH_TIMEOUT_DFLT EQU         $08 ; SECONDS (0=WAIT FOREVER)
-RPN_STACK_DEPTH         EQU         8   ; I C CALCULATOR STACK DEPTH (16-BIT)
-
+                        INCLUDE     EQUATES.INC ; INCLUDES MACROS.INC 
+                
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
                         ORG         ZP_BASE_ADDR
-
 
 PTR_TEMP:               DS          3   ; GEN PURPOSE SCRATCH
 PTR_LEG:                DS          2   ; ADDR SCRATCH
@@ -1252,7 +1180,7 @@ CMD_SAVE_LAST:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_PROCESS_IF_READY
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
-; COMMANDS: Z (CLEAR), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
+; COMMANDS: Z (CLEAR RAM), T (CLEAR SCREEN), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
 ; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), I C (RPN),
 ; Q (WAIT), V (VECTORS), H/? (HELP)
@@ -1430,6 +1358,17 @@ CMD_DO_WARM:
 CMD_DO_VECTORS:
                         JSR         PRT_CRLF
                         JSR         SHOW_VECTORS
+                        RTS
+
+CMD_DO_CLEAR_SCREEN:
+                        LDX         #$FF ; REALLY CLEAR THE SCREEN
+?CDCS_LF_LOOP:
+                        LDA         #$0A
+                        JSR         WRITE_BYTE
+                        DEX
+                        BNE         ?CDCS_LF_LOOP
+                        LDA         #$0D ; final CR
+                        JSR         WRITE_BYTE
                         RTS
 
 CMD_DO_HELP_SHORT:
@@ -3085,6 +3024,8 @@ DBG_RESUME_CONTEXT:
 CMD_TABLE:
                         DB          'Z'
                         DW          CMD_CONFIRM_CLEAR
+                        DB          'T'
+                        DW          CMD_DO_CLEAR_SCREEN
                         DB          'C'
                         DW          CMD_DO_COPY
                         DB          'W'
@@ -3179,6 +3120,7 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_5
                         PRT_CSTRING MSG_HELP_FULL_6
                         PRT_CSTRING MSG_HELP_FULL_7
+                        PRT_CSTRING MSG_HELP_FULL_38
                         PRT_CSTRING MSG_HELP_FULL_8
                         PRT_CSTRING MSG_HELP_FULL_9
                         PRT_CSTRING MSG_HELP_FULL_10
@@ -7387,7 +7329,7 @@ U_OP_MNEM_TAB:
 BSO2_INIT:              DB          $0D, $0A, $0D, $0A
                         DB          "     **** basic system operations/2 ****"
                         DB          $0D, $0A
-                        DB          "     ****       b s o / 2  v0 . 9   ****"
+                        DB          "     ****     b s o / 2  R0M0V0I00 ****"
                         DB          $0D, $0A
                         DB          "     ****         6 5 0 2           ****"
                         DB          $0D, $0A, $0D, $0A, 0
@@ -7402,10 +7344,10 @@ MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
                         DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0
 MSG_HELP_BOOT_SHORT:    DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q W Z T  EXEC:G N R X  MEM:A C "
                         DB          "D F L M S U V", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q W Z  EXEC:G N R X  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q W Z T  EXEC:G N R X  MEM:A C "
                         DB          "D F L M S U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S/-/+  "
@@ -7443,6 +7385,9 @@ MSG_HELP_FULL_6:        DB          $0D, $0A
 MSG_HELP_FULL_7:        DB          $0D, $0A
                         DB          "  Z                CLEAR RAM (CONFIRM Y/"
                         DB          "N)", 0
+MSG_HELP_FULL_38:       DB          $0D, $0A
+                        DB          "  T                CLEAR SCREEN (LF*24 + C"
+                        DB          "R)", 0
 MSG_HELP_FULL_8:        DB          $0D, $0A, $0D, $0A
                         DB          "  [EXECUTION/DEBUG]"
                         DB          0

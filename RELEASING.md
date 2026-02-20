@@ -25,6 +25,7 @@ Do **not** track generated tool outputs:
 - `*.zip`
 
 `DOCS/monitor_usage.pdf` is intentionally tracked as a distributable document generated from `DOCS/monitor_usage.html`.
+`ZERO_PAGE_USAGE.pdf` is intentionally tracked as a distributable document generated from `ZERO_PAGE_USAGE.md`.
 
 Quick check:
 
@@ -43,6 +44,9 @@ make -C SRC all
 - If command behavior/output changed:
   - update `DOCS/monitor_usage.html`
   - regenerate `DOCS/monitor_usage.pdf` (headless Edge)
+- If zero-page map/docs changed:
+  - update `ZERO_PAGE_USAGE.md`
+  - regenerate `ZERO_PAGE_USAGE.pdf`
 
 ## 4) Final Review
 

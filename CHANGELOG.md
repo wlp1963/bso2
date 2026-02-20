@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Added independently assembled Hello World demo artifacts (`SRC/hello-world.asm`, `SRC/hello-world.s28`) and verification transcript (`DOCS/hello-world.txt`) for S28 load-and-run flow.
 - Added `L G S` / `LGS` load-go workflow: load Motorola S-records and auto-execute on successful load.
+- Added monitor command `T` for terminal clear (`LF` x24 then `CR`).
 - Added boot decision truth-table documentation for power-on and reset startup paths.
 - Added patchable IRQ sub-dispatch trampolines:
   - `BRK_HOOK` at `$0089-$008B`
@@ -17,6 +18,9 @@ All notable changes to this project will be documented in this file.
 - Added `DELAY_333MS` helper for prompt timing cadence.
 
 ### Changed
+- Standardized project release marker format to `R#M#V#I##` and set current marker to `R0M0V0I00`.
+- Broke hardware/constants definitions out into `SRC/EQUATES.INC`; `SRC/bso2.asm` now includes equates through a single include.
+- `SRC/EQUATES.INC` now serves as the include entry point for monitor builds and automatically includes `MACROS.INC`.
 - Split startup selection behavior:
   - Power-on uses `C/M`, 6-second wait, `>` ticks, timeout defaults to `C`.
   - Reset-cookie uses `C/W/M`, 6-second wait, `<` ticks, timeout defaults to `M`.
@@ -31,6 +35,9 @@ All notable changes to this project will be documented in this file.
 - Fixed `LGS` auto-run behavior for S-records with zero termination entry (`S7/S8/S9 = 0000`) by falling back to the first data-record address.
 
 ### Docs
+- Updated runtime banner and documentation banner/transcript references from `v0 . 9` to `R0M0V0I00`.
+- Updated command lists and command reference docs for `T` terminal clear behavior.
+- Documented include model: prefer `INCLUDE EQUATES.INC`; macros are included automatically via equates.
 - Updated startup behavior, IRQ dispatch details, and fixed-byte maps in `DOCS/monitor_usage.html`.
 - Updated zero-page reference in `ZERO_PAGE_USAGE.md` for new prompt/IRQ hook allocations.
 - Regenerated tracked PDFs (`DOCS/monitor_usage.pdf`, `ZERO_PAGE_USAGE.pdf`) to match current docs.

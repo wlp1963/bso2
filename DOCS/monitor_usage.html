@@ -23,7 +23,7 @@
 </head>
 <body>
   <h1>bso2 Monitor Reference</h1>
-  <div class="meta">Target: W65C02EDU | Source: <code>SRC/bso2.asm</code> | Generated: 2026-02-18</div>
+  <div class="meta">Target: W65C02EDU | Source: <code>SRC/bso2.asm</code> | Generated: 2026-02-20</div>
 
   <h2>0) Naming</h2>
   <p><code>bso2</code> is the preferred written form in this manual.</p>
@@ -66,7 +66,7 @@ M = enter monitor</p>
   <p>Width persistence policy: <code>W/M</code> restore prior width before prompting; <code>C</code> starts from default 80 before prompting.</p>
   <p>After clear/startup, the sign-on banner (<code>BSO2_INIT</code>) is printed:</p>
   <p class="mono">     **** basic system operations/2 ****
-     ****       b s o / 2  v0 . 9   ****
+     ****     b s o / 2  R0M0V0I00 ****
      ****         6 5 0 2           ****</p>
   <p>Monitor prompt is a single <code>-</code> character on a new line.</p>
 
@@ -76,6 +76,7 @@ M = enter monitor</p>
     <tr><td><code>?</code></td><td><code>?</code></td><td>Short help line.</td><td>Quick command list only.</td></tr>
     <tr><td><code>H</code></td><td><code>H [A|P|M|S]</code></td><td>Help index or scoped help sections.</td><td><code>H</code>=index, <code>H A</code>=all, <code>H P</code>=protection, <code>H M</code>=memory/tools, <code>H S</code>=steering.</td></tr>
     <tr><td><code>Z</code></td><td><code>Z</code></td><td>Clear RAM after Y/N confirmation.</td><td>Zeroes <code>$0200-$7EFF</code>. Does not zero <code>$0000-$01FF</code> (ZP/stack) or <code>$7F00-$7FFF</code> (I/O area).</td></tr>
+    <tr><td><code>T</code></td><td><code>T</code></td><td>Clear terminal viewport.</td><td>Emits <code>LF</code> 24 times, then one <code>CR</code>.</td></tr>
     <tr><td><code>W</code></td><td><code>W</code></td><td>Warm start back into monitor.</td><td>No args.</td></tr>
     <tr><td><code>D</code></td><td><code>D [START [END]]</code></td><td>Hex+ASCII dump. <code>END</code> is inclusive.</td><td><code>D</code> alone repeats last span from next address. Hex/ASCII fields show an 8+8 split.</td></tr>
     <tr><td><code>U</code></td><td><code>U [START END]</code></td><td>Disassemble as 65C02 mnemonics and operands.</td><td><code>END</code> is inclusive. Bare <code>U</code> repeats from saved next-instruction address. Emits <code>ADDR: MNM OPERAND</code>.</td></tr>
@@ -131,6 +132,7 @@ M = enter monitor</p>
 
   <h2>5) API Reference (Macros and Functions)</h2>
   <p>Use this section when calling monitor functionality from your own assembly code.</p>
+  <p>Include model: prefer <code>INCLUDE EQUATES.INC</code> for monitor builds; <code>EQUATES.INC</code> automatically includes <code>MACROS.INC</code>.</p>
 
   <h3>5.1) Macro Reference (<code>macros.inc</code>)</h3>
   <table>
@@ -181,17 +183,17 @@ M = enter monitor</p>
   <table>
     <tr><th>Section</th><th>ORG</th><th>Size (hex)</th><th>Size (dec)</th></tr>
     <tr><td>PAGE0</td><td><code>$0030</code></td><td><code>$60</code></td><td>96</td></tr>
-    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$2725</code></td><td>10021</td></tr>
-    <tr><td>KDATA</td><td><code>$A725</code></td><td><code>$12A8</code></td><td>4776</td></tr>
-    <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$7F</code></td><td>127</td></tr>
-    <tr><td>Total</td><td>-</td><td><code>$3AAC</code></td><td>15020</td></tr>
+    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$2FA1</code></td><td>12193</td></tr>
+    <tr><td>KDATA</td><td><code>$AFA1</code></td><td><code>$1460</code></td><td>5216</td></tr>
+    <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$9C</code></td><td>156</td></tr>
+    <tr><td>Total</td><td>-</td><td><code>$44FD</code></td><td>17661</td></tr>
   </table>
 
   <h3>RAM Layout Highlights</h3>
   <ul>
     <li>PAGE0 starts at <code>$0030</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
     <li>Guard policy reserves monitor PAGE0 through <code>$008F</code>; user ZP is reserved at <code>$0090-$00FF</code>.</li>
-    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$A725</code>).</li>
+    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$AFA1</code>).</li>
     <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>TERM_WIDTH_TIMEOUT=$007B</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>, <code>BRK_HOOK=$0089</code>, <code>HW_HOOK=$008C</code>.</li>
     <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
     <li>Detailed zero-page map: <a href="../ZERO_PAGE_USAGE.md"><code>ZERO_PAGE_USAGE.md</code></a> and <a href="../ZERO_PAGE_USAGE.pdf"><code>ZERO_PAGE_USAGE.pdf</code></a>.</li>
@@ -240,7 +242,7 @@ DBG_TAG_BUF   6 bytes</p>
     <tr><th style="width:14%">Root</th><th style="width:30%">Planned Role</th><th style="width:56%">Notes</th></tr>
     <tr><td><code>B</code></td><td>Bank / FLASH</td><td>Reserved for FLASH-related operations (read/program/erase/verify family).</td></tr>
     <tr><td><code>I</code></td><td>Info root</td><td>Carries nested subfamilies such as time and I/O.</td></tr>
-    <tr><td><code>I T</code></td><td>Time</td><td>Time moves under Info; top-level <code>T</code> is freed.</td></tr>
+    <tr><td><code>I T</code></td><td>Time</td><td>Time remains planned under Info; top-level <code>T</code> is now active for terminal clear.</td></tr>
     <tr><td><code>I C</code></td><td>Calculator</td><td>Implemented baseline (<code>I C</code>/<code>IC</code>) with 16-bit hex RPN tokens; future expansion remains planned.</td></tr>
     <tr><td><code>T</code></td><td>Terminal</td><td>Repurposed top-level namespace for terminal-related operations.</td></tr>
     <tr><td><code>I O P</code></td><td>PIA</td><td>Top-level <code>P</code> is freed; PIA moves under Info/IO.</td></tr>
@@ -295,7 +297,7 @@ DBG_TAG_BUF   6 bytes</p>
   <h3>9.8) Active TODO (Pressing)</h3>
   <h4>Now</h4>
   <ul>
-    <li>TODO: wrap <code>WDCMONv2</code> FLASH routine calls behind <code>bso2</code> wrapper/trampoline entry points.</li>
+    <li>TODO: rework <code>bso2</code> wrapper/trampoline entry points for <code>WDCMONv2</code> FLASH routines; current <code>WDCMONv2</code> FLASH programming flow is tied to Python tooling and needs a rethink for this project.</li>
     <li>TODO: add a post-link map check that enforces <code>END_KDATA &lt; $F000</code>.</li>
   </ul>
 
@@ -317,7 +319,7 @@ DBG_TAG_BUF   6 bytes</p>
   <h3>9.9) Flash / Bank Safety Policy (Critical, Non-Negotiable)</h3>
   <ul>
     <li><code>B</code> must not execute dangerous operations by default.</li>
-    <li><code>bso2</code> plans to use <code>WDCMONv2</code> FLASH routines through wrappers/trampolines.</li>
+    <li><code>bso2</code> plans to use <code>WDCMONv2</code> FLASH routines through wrappers/trampolines, but current <code>WDCMONv2</code> FLASH programming flow is tied to Python tooling and requires a rethink.</li>
     <li>Integration intent is behavioral/protocol compatibility via wrapper entry points, not direct source-text copy.</li>
     <li>Any dangerous <code>B</code> operation requires both force-prefix <code>!</code> and explicit user confirmation.</li>
     <li>Dangerous operations include at minimum erase, program/write, monitor self-update, vector commit, and bank activation/commit transitions.</li>

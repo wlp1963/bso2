@@ -3,6 +3,8 @@
 Monitor ZP range: `$30-$8F`  
 User ZP range: `$90-$FF`
 
+Source include model: prefer `INCLUDE EQUATES.INC` for monitor builds; `EQUATES.INC` automatically includes `MACROS.INC`.
+
 | Label | Size | Address | Use | Ref |
 |---|---:|---:|---|---:|
 | CORE_WORKSPACE | 72 bytes | `$30-$77` | Monitor workspace (pointers, parser, debug scratch) | 1 |

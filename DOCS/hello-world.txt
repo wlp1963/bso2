@@ -7,7 +7,7 @@ TERM WIDTH 4=40 8=80 1=132 [8]?
 RAM CLEARED
 
      **** basic system operations/2 ****
-     ****       b s o / 2  v0 . 9   ****
+     ****     b s o / 2  R0M0V0I00 ****
      ****         6 5 0 2           ****
 
 WARMSTART

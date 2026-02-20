@@ -2,6 +2,8 @@
 
 Source: `DOCS/bso2 demo.txt`
 
+Note: this is a historical capture. Current monitor help/command lists may differ (for example, `T` clear-screen and include-model updates via `EQUATES.INC`).
+
 Related focused search transcript:
 - Clean: [bso2 S demo.txt](./bso2%20S%20demo.txt)
 
@@ -29,7 +31,7 @@ TERM WIDTH 4=40 8=80 1=132 [8]?
 RAM CLEARED
 
      **** basic system operations/2 ****
-     ****       b s o / 2  v0 . 9   ****
+     ****     b s o / 2  R0M0V0I00 ****
      ****         6 5 0 2           ****
 
 
@@ -191,7 +193,7 @@ TERM WIDTH 4=40 8=80 1=132 [8]?
 RAM CLEARED
 
      **** basic system operations/2 ****
-     ****       b s o / 2  v0 . 9   ****
+     ****     b s o / 2  R0M0V0I00 ****
      ****         6 5 0 2           ****
 
 
