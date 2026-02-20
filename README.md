@@ -148,6 +148,8 @@ make -C SRC clean
 - Special recognition to Ben Eater for accessible 6502 education and practical learning resources.
 - Ben Eater 6502: `https://eater.net/6502`
 - Community reference hub: `https://6502.org/`
+- Book reference on hand: `6502 Assembly Language Programming` by `Lance A. Leventhal`
+- Book reference on hand: `Programming the 65816: Including the 6502, 65C02, and 65802` by `David Eyes` and `Ron Lichty` (ISBN `0-89303-789-3`)
 
 ## Legal
 

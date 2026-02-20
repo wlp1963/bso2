@@ -80,6 +80,20 @@ If copyright/permission status is unknown, prefer concept-only reimplementation 
 - Publisher / edition / year: `Osborne/McGraw-Hill, 1979` 
 - Pages / chapter / section used: `p. 7-3 (hex to ASCII method)`
 - Repository files affected: `SRC/bso2.asm` (`CVT_NIBBLE`)
+- Reference status: `on hand`
 - Usage type: `adapted code / algorithmic pattern`
 - Copyright / permission status: `unknown (citation/provenance recorded; no license grant implied)`
 - Notes: `Method/code reference appears on Leventhal p. 7-3 (bottom) with superscript 1. The bibliographic details for Chapter 7 reference #1 are listed on p. 7-15: D. R. Allison, "A Design Philosophy for Microcomputer Architectures.", Computer, February 1977, pp. 35-41.`
+
+### Book Source Entry: Programming the 65816 (Reference on Hand)
+
+- Source title: `Programming the 65816: Including the 6502, 65C02, and 65802`
+- Author(s): `David Eyes`; `Ron Lichty`
+- ISBN: `0-89303-789-3`
+- Publisher / edition / year: `Prentice Hall Press`
+- Pages / chapter / section used: `none yet (reference copy only)`
+- Repository files affected: `none yet`
+- Reference status: `on hand`
+- Usage type: `none yet (future reference candidate)`
+- Copyright / permission status: `unknown (no license grant implied)`
+- Notes: `Book recorded for provenance tracking. If any code/algorithms are derived from this source, update this entry with exact pages/sections and file paths.`
