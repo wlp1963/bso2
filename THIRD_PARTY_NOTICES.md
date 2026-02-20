@@ -42,6 +42,12 @@ Build and upload instructions may reference local installations such as:
 
 Those tools remain subject to their own licenses/terms from their respective owners.
 
+## Educational / Community References
+
+- Special recognition to Ben Eater for accessible 6502 education and practical learning resources.
+- Ben Eater 6502: `https://eater.net/6502`
+- Community reference hub: `https://6502.org/`
+
 ## Book-Sourced Material (Template)
 
 Use this section when code or algorithms are derived from printed books/manuals.

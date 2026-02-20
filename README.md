@@ -143,6 +143,12 @@ make -C SRC clean
 - `Before publish`: complete XMODEM send/receive and staged vector commit flow.
 - `Deferred`: compression/RLE/TX-ring architecture is postponed while `32K` FLASH headroom is sufficient.
 
+## Acknowledgments
+
+- Special recognition to Ben Eater for accessible 6502 education and practical learning resources.
+- Ben Eater 6502: `https://eater.net/6502`
+- Community reference hub: `https://6502.org/`
+
 ## Legal
 
 - `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
