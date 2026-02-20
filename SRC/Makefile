@@ -9,9 +9,18 @@ bso2:	bso2.asm macros.inc
 	WDCLN -g -sz -t -HZ -PFF -J -Q bso2 -C8000
 	del /f *.obj *.sym
 
-upload:	
-	python "C:\Program Files\wdc\Tools\bin\wdc_interface.py" -dCOM3 bso2.bin -m write -k -x -t
+WDC_UPLOADER = C:\Program Files\wdc\tools\bin\wdc_interface.py
+WDC_EDU_ARCHIVE_URL = https://wdc65xx.com/wp-content/uploads/2022/09/EDU_GettingStarted.zip
+
+# wdc_uploader_term.py and wdc_interface.py are the same WDC uploader script
+# under different package revisions (often distributed via W65C02SXB.zip /
+# EDU_GettingStarted.zip).
+upload:	bso2 check-uploader
+	python "$(WDC_UPLOADER)" -dCOM3 bso2.bin -m write -k -x -t
 	del /f *.bin *.obj *.lst *.sym *.map
+
+check-uploader:
+	@if not exist "$(WDC_UPLOADER)" (echo ERROR: Missing uploader script: "$(WDC_UPLOADER)" & echo INFO: Download WDC EDU package: "$(WDC_EDU_ARCHIVE_URL)" & exit /b 1)
 
 hello:
 	wdc02as -g -l -s hello-world.asm

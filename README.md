@@ -67,7 +67,10 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
   - `WDCLN`
 - For `make upload`:
   - Python
-  - `C:\Program Files\wdc\Tools\bin\wdc_interface.py`
+  - `C:\Program Files\wdc\tools\bin\wdc_interface.py`
+  - `wdc_uploader_term.py` and `wdc_interface.py` are the same uploader script name in different WDC package revisions.
+  - WDC archive source (current direct URL): `https://wdc65xx.com/wp-content/uploads/2022/09/EDU_GettingStarted.zip`
+  - Legacy/local archive naming may appear as `W65C02SXB.zip` or `W65C02SXB (1).zip`.
 - Serial port in `Makefile` is currently `COM3`
 
 ## Assembly Include Model
