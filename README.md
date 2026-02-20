@@ -23,6 +23,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - Commands: `? H Z W D U A X G I R N M F S L C Q V` ([reference](DOCS/monitor_usage.html))
 - `L G S` / `LGS` load-go support for Motorola S-record workflows
 - ZP map reference: [ZERO_PAGE_USAGE.md](ZERO_PAGE_USAGE.md) ([PDF](ZERO_PAGE_USAGE.pdf))
+- Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with `CURR`/`NEXT` instruction lines and `STATE` line
 
