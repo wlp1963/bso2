@@ -1,6 +1,7 @@
 # Stories
 
 ## Milestones
+- `2026-02-20T01:53:28-06:00 Prerelease R0M0V0I00 in commit 0ac9fd699e2758b7d57b87567d660ad1623eea73.`
 - `2026-02-18T18:50:20-06:00` - `L G S` / `LGS` implemented: S-record load-and-go now auto-executes, including fallback when S7/S8/S9 entry is zero.
 - `2026-02-18T14:40:00-06:00` - Independently assembled S28 program successfully loaded and executed on W65C02EDU (`HELLO, WORLD` observed).
 - `2026-02-17T14:21:00-06:00` - David Gray (WDC) invited to this repository.
