@@ -90,7 +90,7 @@ MONITOR HELP
 -D
 008A: 0D 80                   |                          |..|
 
--!M  M88 01
+-M  M88 01
 PROTECTED RANGE ($0000-$03FF). USE ! TO FORCE
 -!M88 01
 WANT TO PLAY A GAME?
