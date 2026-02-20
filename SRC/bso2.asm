@@ -6240,6 +6240,10 @@ SYS_NMI:                SEI             ; LOCK INTS
 
 STR_NMI_NAME:           DB          "               **NMI_PLACEHOLDER**", 0
 
+;
+; BSO2_IRQ_BRK_HW_DISPATCH
+;
+
 SYS_IRQ:                SEI             ; LOCK
                         CLD             ; CLEAR
                         JSR         DEBUG_IRQ

@@ -86,14 +86,32 @@ M = enter monitor</p>
     <tr><td><code>R</code></td><td><code>R [A=HH] [X=HH] [Y=HH]</code></td><td>Resume last debug context.</td><td>Restores <code>A/X/Y/P/SP/PC</code> from latest debug snapshot and resumes via <code>RTI</code>. Optional <code>A/X/Y</code> overrides are applied first. Up-arrow repeat is useful for single-step resume loops.</td></tr>
     <tr><td><code>N</code></td><td><code>N</code></td><td>Run to next sequential instruction.</td><td>Implements next-stop by patching a temporary <code>BRK</code> at <code>PC+len(opcode)</code>. RAM only; ROM/I/O patch targets are rejected. Debug output restores and displays the original stepped-to instruction in <code>CURR:</code>.</td></tr>
     <tr><td><code>M</code></td><td><code>M [START [B0..B15]]</code></td><td>Modify/deposit memory. Inline deposit supports up to 16 bytes.</td><td>Interactive mode: <code>CR/LF = next</code>, <code>.</code> ends. CRLF pair counts as one next.</td></tr>
-    <tr><td><code>F</code></td><td><code>F START END B0..B15</code></td><td>Fill inclusive range with repeating 1..16 byte pattern.</td><td>No interactive mode. Verifies each write.</td></tr>
+    <tr><td><code>F</code></td><td><code>F START END B0[..B15]</code></td><td>Fill inclusive range with repeating 1..16 byte pattern.</td><td>No interactive mode. Verifies each write.</td></tr>
     <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
     <tr><td><code>S</code></td><td><code>S B START END ...</code> or <code>S C START END TEXT</code></td><td>Search memory for byte patterns or text.</td><td>Prints hit address plus aligned row base context.</td></tr>
     <tr><td><code>L</code></td><td><code>L S</code> | <code>L G S</code> | <code>L B ADDR LEN</code></td><td>Load Motorola S-records or raw bytes.</td><td><code>L G S</code>/<code>LGS</code> auto-jumps to the S7/S8/S9 start address after successful load.</td></tr>
     <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code></td><td>Force-prefix for protected commands.</td><td>Allows access to protected low RAM (<code>$0000-$03FF</code>).</td></tr>
     <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
-    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; 9F31 &gt; [0080] &gt; 800D</code>. IRQ now appends sub-dispatch lines: <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
+    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; A8CB &gt; [0080] &gt; 800D</code>. IRQ appends sub-dispatch lines: <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
   </table>
+
+  <h3>2.1) Reading <code>V</code> Output</h3>
+  <p>Example chain output:</p>
+  <p class="mono">RST: FFFC &gt; F818 &gt; 8004 &gt; A8CB &gt; [0080] &gt; 800D **RST_PLACEHOLDER**
+NMI: FFFA &gt; 8007 &gt; [0083] &gt; A8E8               **NMI_PLACEHOLDER**
+IRQ: FFFE &gt; 800A &gt; [0086] &gt; A941 &gt; BSO2_IRQ_BRK_HW_DISPATCH
+     BRK: [0089] &gt; A952 **BRK_PLACEHOLDER**
+     HW:  [008C] &gt; A980 **HW_PLACEHOLDER**</p>
+  <ul>
+    <li>Each <code>&gt;</code> is one control-transfer hop in the chain as traced by the monitor.</li>
+    <li><code>FFFC</code>, <code>FFFA</code>, and <code>FFFE</code> are fixed hardware vector locations (RST/NMI/IRQ+BRK).</li>
+    <li><code>F818</code> is the WDC ROM reset bridge; <code>8004</code>/<code>8007</code>/<code>800A</code> are monitor-side vector entry stubs.</li>
+    <li>Bracketed entries like <code>[0080]</code>, <code>[0083]</code>, <code>[0086]</code>, <code>[0089]</code>, <code>[008C]</code> are patchable RAM JMP trampolines in zero page.</li>
+    <li>Unbracketed high addresses (for example <code>A8CB</code>, <code>A8E8</code>, <code>A941</code>, <code>A952</code>, <code>A980</code>) are current resolved code targets and can move between builds.</li>
+    <li>The IRQ main line ends with <code>BSO2_IRQ_BRK_HW_DISPATCH</code> because IRQ first lands in a common front-end, then runtime-dispatches to BRK or hardware IRQ sub-hooks.</li>
+    <li>Design takeaway: high flexibility by design: one stable IRQ entry, two independently patchable sub-dispatch paths (BRK/HW).</li>
+    <li>The <code>**..._PLACEHOLDER**</code> suffixes are handler-name slots printed with each chain/sub-chain; in a fully named build they identify the currently bound handler symbol/name.</li>
+  </ul>
 
   <h2>3) Interactive Caveats</h2>
   <ul>

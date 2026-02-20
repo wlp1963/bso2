@@ -28,6 +28,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 - `L G S` / `LGS` load-go support for Motorola S-record workflows
 - ZP map reference: [ZERO_PAGE_USAGE.md](ZERO_PAGE_USAGE.md) ([PDF](ZERO_PAGE_USAGE.pdf))
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
+- IRQ design takeaway: high flexibility by design: one stable IRQ entry, two independently patchable sub-dispatch paths (`BRK`/`HW`)
 - Protected low RAM (`$0000-$03FF`) with force prefix `!`
 - BRK debug context output with `CURR`/`NEXT` instruction lines and `STATE` line
 
