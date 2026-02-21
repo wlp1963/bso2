@@ -29,3 +29,5 @@ hello:
 clean:
 	del /f *.obj *.lst *.sym *.map
 	
+term:
+	python -m serial.tools.miniterm COM3 1042200

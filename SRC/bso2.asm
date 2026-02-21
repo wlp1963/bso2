@@ -10,7 +10,7 @@
 ; ****************************************************************************
 ; * *
 ; * BSO2 MONITOR FOR W65C02EDU                                               *
-; * VERSION: R0M0V0I00                                                       *
+; * VERSION: R0M0V1I00                                                       *
 ; * *
 ; ****************************************************************************
 
@@ -98,6 +98,10 @@ TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
                         DS          ZP_TERM_TIMEOUT_ADDR-*
                                         ; PIN TERM WIDTH PROMPT TIMEOUT BYTE
 TERM_WIDTH_TIMEOUT:     DS          1   ; 0=WAIT FOREVER, 1..255=SECONDS
+                        DS          ZP_HEARTBEAT_ADDR-* ; PIN HEARTBEAT PHASE BYTE
+HEARTBEAT_PHASE:        DS          1   ; 00/FF OVERLAY TO SHOW T0 HEARTBEAT
+                        DS          ZP_HEARTBEAT_DIV_ADDR-* ; PIN HEARTBEAT DIV
+HEARTBEAT_DIV:          DS          1   ; SOFTWARE DIVIDER FOR VISIBLE BLINK
                         DS          ZP_TERM_WAIT_LED_ADDR-*
 TERM_WAIT_LED:          DS          1   ; LED BLINK PATTERN SCRATCH
                         DS          ZP_TERM_WAIT_SECS_ADDR-*
@@ -200,11 +204,14 @@ SYS_RST:
                         JSR         INIT_SERIAL
                                         ; SERIAL READY FOR BOOT MESSAGES
                         JSR         INIT_LED ; LED PORT READY FOR WRITE_BYTE
+                        JSR         VIA_T1_STOP ; TIMER IRQS OFF BY DEFAULT
                         STZ         BRK_FLAG ; NO RESUME CONTEXT AFTER RESET
                         STZ         SYS_FLAGS ; RESET PACKED SYSTEM FLAGS
                         STZ         CMD_ESC_STATE
                         STZ         CMD_LAST_LEN
                         STZ         STEP_ACTIVE
+                        STZ         HEARTBEAT_PHASE
+                        STZ         HEARTBEAT_DIV
                         LDA         TERM_COLS ; SAVE PRIOR WIDTH ACROSS RESET
                         STA         PSR_TEMP
                         LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
@@ -1738,15 +1745,76 @@ CMD_DO_GAME:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_INFO
 ; DESCRIPTION: INFO NAMESPACE ROOT
-; USAGE: I C <RPN TOKENS>   OR   IC <RPN TOKENS>
+; USAGE: I   OR   I A   OR   I T0 [0|1]   OR   I I 0|1   OR
+;        I C <RPN TOKENS>   OR
+;        IC <RPN TOKENS>
 ; ----------------------------------------------------------------------------
 CMD_DO_INFO:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
+                        BEQ         ?CID_INFO
+                        CMP         #'A'
+                        BEQ         ?CID_ABOUT
+                        CMP         #'T'
+                        BEQ         ?CID_TIMER
+                        CMP         #'I'
+                        BNE         ?CID_CHK_CALC
+                        JMP         ?CID_IRQ_MASK
+?CID_CHK_CALC:
                         CMP         #'C'
-                        BEQ         ?CID_CALC
+                        BNE         ?CID_USAGE
+                        JMP         ?CID_CALC
+?CID_USAGE:
                         PRT_CSTRING MSG_I_USAGE
+                        RTS
+?CID_INFO:
+                        PRT_CSTRING MSG_I_INFO
+                        RTS
+?CID_ABOUT:
+                        PRT_CSTRING MSG_I_ABOUT
+                        RTS
+?CID_TIMER:
+                        INX             ; PARSE AFTER 'T'
+                        LDA         CMD_LINE,X
+                        CMP         #'0' ; TIMER NAME: T0
+                        BNE         ?CID_TIMER_USAGE
+                        INX             ; PARSE TIMER ACTION ARG
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CID_TIMER_USAGE
+                        CMP         #'1'
+                        BEQ         ?CID_TIMER_ON
+                        CMP         #'0'
+                        BEQ         ?CID_TIMER_OFF
+?CID_TIMER_USAGE:
+                        PRT_CSTRING MSG_IT_USAGE
+                        RTS
+?CID_TIMER_ON:
+                        JSR         VIA_T1_START_FREE
+                        PRT_CSTRING MSG_IT_ON
+                        RTS
+?CID_TIMER_OFF:
+                        JSR         VIA_T1_STOP
+                        PRT_CSTRING MSG_IT_OFF
+                        RTS
+?CID_IRQ_MASK:
+                        INX             ; PARSE AFTER SECOND 'I'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'1'
+                        BEQ         ?CID_IRQ_ON
+                        CMP         #'0'
+                        BEQ         ?CID_IRQ_OFF
+                        PRT_CSTRING MSG_II_USAGE
+                        RTS
+?CID_IRQ_ON:
+                        CLI             ; ENABLE CPU IRQ HANDLING
+                        PRT_CSTRING MSG_II_ON
+                        RTS
+?CID_IRQ_OFF:
+                        SEI             ; DISABLE CPU IRQ HANDLING
+                        PRT_CSTRING MSG_II_OFF
                         RTS
 ?CID_CALC:
                         INX             ; PARSE AFTER SUBCOMMAND LETTER
@@ -6246,12 +6314,21 @@ STR_NMI_NAME:           DB          "               **NMI_PLACEHOLDER**", 0
 
 SYS_IRQ:                SEI             ; LOCK
                         CLD             ; CLEAR
-                        JSR         DEBUG_IRQ
-                        LDA         DBG_MODE
-                        CMP         #DBG_MODE_BRK
-                        BEQ         ?SIRQ_TO_BRK
+        ; FAST-PATH ALL HARDWARE IRQS TO AVOID DEBUG FLOOD.
+        ; PRESERVE INTERRUPTED A/X BEFORE PROBING STACKED P.
+                        PHA
+                        PHX
+                        TSX
+                        LDA         $103,X ; STACKED P (OFFSET +2 FROM PHA/PHX)
+                        AND         #$10 ; B BIT SET => BRK
+                        BNE         ?SIRQ_BRK
+                        PLX
+                        PLA
                         JMP         HW_HOOK
-?SIRQ_TO_BRK:
+?SIRQ_BRK:
+                        PLX
+                        PLA
+                        JSR         DEBUG_IRQ
                         JMP         BRK_HOOK
 SYS_IRQ_BRK_DISPATCH:
                         LDA         #SYSF_GO_FLAG_M
@@ -6279,6 +6356,27 @@ SYS_IRQ_BRK_PATCH_DIRECT:
                         LDA         #>MONITOR
                         STA         $103,X ; STACKED PC HI (AFTER RTI)
 SYS_IRQ_HW_DISPATCH:
+                        PHA
+                        LDA         VIA_IFR
+                        AND         #$40 ; VIA TIMER1 IRQ FLAG
+                        BEQ         ?SIHD_EXIT
+                        LDA         VIA_T1L ; READ LOW COUNTER TO ACK T1 IRQ
+                        INC         HEARTBEAT_DIV
+                        LDA         HEARTBEAT_DIV
+                        ; TOGGLE ONLY ON DIV WRAP (~256 TICKS):
+                        ; AT ~122HZ T0 THIS IS ~2.1S PER TOGGLE (~4.2S FULL CYCLE)
+                        AND         #$FF
+                        BNE         ?SIHD_HB_READY
+                        LDA         HEARTBEAT_PHASE
+                        EOR         #$FF ; FLIP WHOLE LED OVERLAY MASK
+                        STA         HEARTBEAT_PHASE
+?SIHD_HB_READY:
+                        LDA         PIA_PB ; SAMPLE PB0..PB7
+                        EOR         #$FF ; INVERT FOR LED DISPLAY
+                        EOR         HEARTBEAT_PHASE ; OVERLAY HEARTBEAT TOGGLE
+                        STA         LED_DATA ; WRITE INVERTED VALUE TO LEDS
+?SIHD_EXIT:
+                        PLA
 SYS_IRQ_HW_RTI:
                         RTI             ; DONE
 
@@ -6291,9 +6389,36 @@ STR_IRQ_HW_NAME:        DB          " **HW_PLACEHOLDER**", 0
 ; ----------------------------------------------------------------------------
 ; HARDWARE CONTROL
 ; ----------------------------------------------------------------------------
+VIA_T1_START_FREE:      PUSH        A
+                        STZ         HEARTBEAT_PHASE
+                        STZ         HEARTBEAT_DIV
+                        LDA         VIA_ACR
+                        ORA         #$40 ; T1 FREE-RUN MODE
+                        STA         VIA_ACR
+                        LDA         #<VIA_T1_RELOAD_DFLT
+                        STA         VIA_T1L ; LATCH/COUNTER LOW
+                        LDA         #>VIA_T1_RELOAD_DFLT
+                        STA         VIA_T1H ; LATCH/COUNTER HIGH + START
+                        LDA         #$C0 ; IER BIT7=SET, BIT6=T1 ENABLE
+                        STA         VIA_IER
+                        PULL        A
+                        RTS
+
+VIA_T1_STOP:            PUSH        A
+                        LDA         #$40 ; IER BIT7=0, BIT6=CLR T1 IRQ ENABLE
+                        STA         VIA_IER
+                        LDA         VIA_T1L ; ACK ANY PENDING T1 IRQ
+                        STZ         HEARTBEAT_PHASE
+                        STZ         HEARTBEAT_DIV
+                        PULL        A
+                        RTS
+
 INIT_LED:               PUSH        A
                         LDA         #%11111111 ; ALL OUTPUT
                         STA         LED_DDR ; TO PORT A DDR
+                        STZ         PIA_DDRB ; PORT B AS INPUT (PB0..PB7)
+                        LDA         #$34 ; ENABLE DATA REG (NO HANDSHAKE)
+                        STA         PIA_CRB
                         LDA         #$34 ; ENABLE DATA REG
                         STA         PIA_CRA ; BUZZER OFF
                         PULL        A   ; RESTORE
@@ -7333,7 +7458,7 @@ U_OP_MNEM_TAB:
 BSO2_INIT:              DB          $0D, $0A, $0D, $0A
                         DB          "     **** basic system operations/2 ****"
                         DB          $0D, $0A
-                        DB          "     ****     b s o / 2  R0M0V0I00 ****"
+                        DB          "     ****     b s o / 2  R0M0V1I00 ****"
                         DB          $0D, $0A
                         DB          "     ****         6 5 0 2           ****"
                         DB          $0D, $0A, $0D, $0A, 0
@@ -7408,8 +7533,9 @@ MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  I C EXPR         RPN CALC (16-BIT HEX) "
-                        DB          "TOKENS", 0
+                        DB          "  I / I A / I T0 [0|1] / I I 0|1 / I C EXPR "
+                        DB          "INFO / EASTER EGG / RPN CALC "
+                        DB          "(16-BIT HEX TOKENS)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
                         DB          "  [MEMORY]          ***E IS INCLUSIVE***  *"
                         DB          "**ENTER HEX PAIR FOR BYTE***"
@@ -7506,7 +7632,15 @@ MSG_A_USAGE:            DB          $0D, $0A
 MSG_A_RANGE_ERR:        DB          $0D, $0A
                         DB          "A BRANCH RANGE ERROR", 0
 MSG_G_USAGE:            DB          $0D, $0A, "USAGE: X START", 0
-MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I C <RPN>", 0
+MSG_I_INFO:             DB          $0D, $0A, "R0M0V1I00", 0
+MSG_I_ABOUT:            DB          $0D, $0A, "95west.us", 0
+MSG_IT_ON:              DB          $0D, $0A, "I T0 1 TIMER1 FREE-RUN: ON (~122HZ @8MHZ)", 0
+MSG_IT_OFF:             DB          $0D, $0A, "I T0 0 TIMER1 FREE-RUN: OFF", 0
+MSG_IT_USAGE:           DB          $0D, $0A, "USAGE: I T0 1 (ON) | I T0 0 (OFF)", 0
+MSG_II_ON:              DB          $0D, $0A, "I I 1 CPU IRQ: ENABLED", 0
+MSG_II_OFF:             DB          $0D, $0A, "I I 0 CPU IRQ: DISABLED", 0
+MSG_II_USAGE:           DB          $0D, $0A, "USAGE: I I 1 (ENABLE IRQ) | I I 0 (DISABLE IRQ)", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1] | I I 0|1 | I C <RPN>", 0
 MSG_IC_USAGE:           DB          $0D, $0A
                         DB          "USAGE: I C T0 [T1 ...]  TOKENS: HEX,+,-,*,/"
                         DB          ",&,|,^,~", 0

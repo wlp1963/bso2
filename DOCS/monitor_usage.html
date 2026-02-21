@@ -66,7 +66,7 @@ M = enter monitor</p>
   <p>Width persistence policy: <code>W/M</code> restore prior width before prompting; <code>C</code> starts from default 80 before prompting.</p>
   <p>After clear/startup, the sign-on banner (<code>BSO2_INIT</code>) is printed:</p>
   <p class="mono">     **** basic system operations/2 ****
-     ****     b s o / 2  R0M0V0I00 ****
+     ****     b s o / 2  R0M0V1I00 ****
      ****         6 5 0 2           ****</p>
   <p>Monitor prompt is a single <code>-</code> character on a new line.</p>
 
@@ -82,7 +82,7 @@ M = enter monitor</p>
     <tr><td><code>U</code></td><td><code>U [START END]</code></td><td>Disassemble as 65C02 mnemonics and operands.</td><td><code>END</code> is inclusive. Bare <code>U</code> repeats from saved next-instruction address. Emits <code>ADDR: MNM OPERAND</code>.</td></tr>
     <tr><td><code>A</code></td><td><code>A START [INSN]</code></td><td>Tiny 65C02 assembler, interactive at next address.</td><td>Example: <code>A 1000 LDA #FF</code> then prompt <code>A 1002:</code>. <code>.</code> exits. No labels/forward refs. Relative branches accept absolute hex targets and are range-checked. Explicit accumulator form like <code>INC A</code> is supported.</td></tr>
     <tr><td><code>X</code></td><td><code>X START</code></td><td>Execute from absolute address.</td><td>Transfers control via RTS trampoline. NMI while running under <code>X</code> breaks back to monitor; target <code>RTS</code> also returns to monitor.</td></tr>
-    <tr><td><code>I</code></td><td><code>I C &lt;RPN...&gt;</code> or <code>IC &lt;RPN...&gt;</code></td><td>Evaluate 16-bit hex RPN expression.</td><td>Values are 1..4 hex digits (optional <code>$</code>). Operators: <code>+ - * / &amp; | ^ ~</code>. Prints top-of-stack as <code>I C = $HHHH</code>.</td></tr>
+    <tr><td><code>I</code></td><td><code>I</code>, <code>I A</code>, <code>I T0 0|1</code>, <code>I I 0|1</code>,<br><code>I C &lt;RPN...&gt;</code> or <code>IC &lt;RPN...&gt;</code></td><td>Info root, about text, timer heartbeat toggle, IRQ mask toggle, or 16-bit hex RPN evaluation.</td><td><code>I T0 1</code>=enable Timer1 free-run heartbeat, <code>I T0 0</code>=disable. <code>I I 1</code>=enable CPU IRQ, <code>I I 0</code>=disable. RPN values are 1..4 hex digits (optional <code>$</code>), operators: <code>+ - * / &amp; | ^ ~</code>, output <code>I C = $HHHH</code>.</td></tr>
     <tr><td><code>R</code></td><td><code>R [A=HH] [X=HH] [Y=HH]</code></td><td>Resume last debug context.</td><td>Restores <code>A/X/Y/P/SP/PC</code> from latest debug snapshot and resumes via <code>RTI</code>. Optional <code>A/X/Y</code> overrides are applied first. Up-arrow repeat is useful for single-step resume loops.</td></tr>
     <tr><td><code>N</code></td><td><code>N</code></td><td>Run to next sequential instruction.</td><td>Implements next-stop by patching a temporary <code>BRK</code> at <code>PC+len(opcode)</code>. RAM only; ROM/I/O patch targets are rejected. Debug output restores and displays the original stepped-to instruction in <code>CURR:</code>.</td></tr>
     <tr><td><code>M</code></td><td><code>M [START [B0..B15]]</code></td><td>Modify/deposit memory. Inline deposit supports up to 16 bytes.</td><td>Interactive mode: <code>CR/LF = next</code>, <code>.</code> ends. CRLF pair counts as one next.</td></tr>

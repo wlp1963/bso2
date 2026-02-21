@@ -8,7 +8,7 @@ It provides startup boot-flow policy (power-on vs reset menus), memory tools, an
 
 > **Project status:** Commit cadence may temporarily slow while intensive testing is underway (including a known bug hunt), userland experimentation is prioritized, and stable paths (`PRT_HEX`, `DEBUG`, etc.) are being moved into high FLASH (`$EFFF` and down).
 >
-> **Current release marker:** `R0M0V0I00`
+> **Current release marker:** `R0M0V1I00`
 
 ## Name
 

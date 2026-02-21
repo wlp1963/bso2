@@ -105,6 +105,8 @@ ZP_HW_HOOK_ADDR         EQU         $8C
 ZP_BRK_FLAG_ADDR        EQU         $79
 ZP_TERM_COLS_ADDR       EQU         $7A
 ZP_TERM_TIMEOUT_ADDR    EQU         $7B
+ZP_HEARTBEAT_ADDR       EQU         $7C
+ZP_HEARTBEAT_DIV_ADDR   EQU         $7D
 ZP_TERM_WAIT_LED_ADDR   EQU         $7E
 ZP_TERM_WAIT_SECS_ADDR  EQU         $7F
 ZP_GUARD_END_EXCL       EQU         $0090 ; KEEP USAGE <= $008F
@@ -118,3 +120,5 @@ TERM_COLS_80            EQU         $50
 TERM_COLS_132           EQU         $84
 TERM_WIDTH_TIMEOUT_DFLT EQU         $08 ; SECONDS (0=WAIT FOREVER)
 RPN_STACK_DEPTH         EQU         8   ; I C CALCULATOR STACK DEPTH (16-BIT)
+VIA_T1_RELOAD_DFLT      EQU         $FFFF
+                                        ; FREE-RUN TIMER1 RELOAD (8MHZ => ~122.07HZ)

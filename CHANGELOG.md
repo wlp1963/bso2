@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased] - 2026-02-18
+## [Unreleased] - 2026-02-21
 
 ### Added
 - Added independently assembled Hello World demo artifacts (`SRC/hello-world.asm`, `SRC/hello-world.s28`) and verification transcript (`DOCS/hello-world.txt`) for S28 load-and-run flow.
@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 - Added `DELAY_333MS` helper for prompt timing cadence.
 
 ### Changed
-- Standardized project release marker format to `R#M#V#I##` and set current marker to `R0M0V0I00`.
+- Standardized project release marker format to `R#M#V#I##` and set current marker to `R0M0V1I00`.
 - Broke hardware/constants definitions out into `SRC/EQUATES.INC`; `SRC/bso2.asm` now includes equates through a single include.
 - `SRC/EQUATES.INC` now serves as the include entry point for monitor builds and automatically includes `MACROS.INC`.
 - Split startup selection behavior:
@@ -36,6 +36,7 @@ All notable changes to this project will be documented in this file.
 
 ### Docs
 - Updated runtime banner and documentation banner/transcript references from `v0 . 9` to `R0M0V0I00`.
+- Documented `I T0 0|1` (Timer1 heartbeat toggle) and `I I 0|1` (CPU IRQ enable/disable) in `DOCS/monitor_usage.html`.
 - Updated command lists and command reference docs for `T` terminal clear behavior.
 - Documented include model: prefer `INCLUDE EQUATES.INC`; macros are included automatically via equates.
 - Updated startup behavior, IRQ dispatch details, and fixed-byte maps in `DOCS/monitor_usage.html`.
