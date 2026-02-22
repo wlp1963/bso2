@@ -22,7 +22,7 @@
                         PW          132
                         TITLE       'BSO2'
 
-                        INCLUDE     EQUATES.INC ; INCLUDES MACROS.INC 
+                        INCLUDE     ../INCLUDES/equates.inc ; INCLUDES MACROS.INC 
                 
 ; --- ZERO PAGE MEMORY ALLOCATION ---
                         PAGE0
@@ -181,6 +181,21 @@ RPN_STACK:              DS          RPN_STACK_DEPTH*2 ; I C VALUE STACK (LO/HI)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
 SREC_FIRST_ADDR:        DS          2   ; FIRST S1/S2/S3 ADDRESS FOR LGS FALLBACK
 SREC_FIRST_VALID:       DS          1   ; 1 IF SREC_FIRST_ADDR IS VALID
+
+
+                        XREF PRT_C_STRING
+                        XREF PRT_WORD_FROM_PARSE
+                        XREF PRT_HEX_WORD_AX
+                        XREF HEX_TO_NIBBLE
+                        XREF PRT_HEX
+                        XREF PRT_CRLF
+                        
+                        XDEF STR_PTR
+                        XDEF CMD_PARSE_VAL
+                        XREF WRITE_BYTE
+                        XREF PUT_LED
+                        XREF WDC_WRITE_BYTE
+                        XREF LED_DATA
 
                         CODE
 
@@ -448,20 +463,6 @@ MEM_CLEAR:
 ; ----------------------------------------------------------------------------
 INIT_SERIAL:
                         JSR         WDC_INIT_SERIAL ; CALL ROM
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: WRITE_BYTE
-; DESCRIPTION: SENDS CHAR TO UART, UPDATES LEDS, ADDS DELAY
-; INPUT: ACC = CHAR TO SEND
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-WRITE_BYTE:
-                        JSR         WDC_WRITE_BYTE ; CALL ROM SEND
-                        JSR         PUT_LED ; SHOW ON LEDS
-;       JSR     DELAY                   ; STABILIZE UART
                         RTS             ; DONE
 
 ; ----------------------------------------------------------------------------
@@ -6155,17 +6156,6 @@ PRT_FLAG_STR:
                         JSR         WRITE_BYTE
                         RTS             ; DONE
 
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_CRLF
-; DESCRIPTION: PRINTS CARRIAGE RETURN + LINE FEED
-; ----------------------------------------------------------------------------
-PRT_CRLF:               PUSH        A   ; SAVE ACC
-                        LDA         #$0D ; CR
-                        JSR         WRITE_BYTE ; SEND
-                        LDA         #$0A ; LF
-                        JSR         WRITE_BYTE ; SEND
-                        PULL        A   ; RESTORE ACC
-                        RTS             ; DONE
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: PRT_SPACE / PRT_STACK / PRT_A / PRT_X / PRT_Y / PRT_P
@@ -6424,8 +6414,6 @@ INIT_LED:               PUSH        A
                         PULL        A   ; RESTORE
                         RTS
 
-PUT_LED:                STA         LED_DATA ; WRITE TO LEDS
-                        RTS
 
 BUZZER_ON:              PUSH        A
                         LDA         #$3C ; CA2 HI
@@ -7215,32 +7203,6 @@ FOLLOW_CHAIN:
 ; ----------------------------------------------------------------------------
 
 ; ----------------------------------------------------------------------------
-; SUBROUTINE: HEX_TO_NIBBLE
-; DESCRIPTION: CONVERTS ASCII HEX [0-9A-F] IN ACC TO BINARY NIBBLE
-; INPUT: ACC = ASCII CHAR
-; OUTPUT: ACC = NIBBLE, C=1 IF VALID, C=0 IF INVALID
-; ----------------------------------------------------------------------------
-HEX_TO_NIBBLE:
-                        CMP         #'0'
-                        BCC         ?HTN_BAD
-                        CMP         #':'
-                        BCC         ?HTN_DEC
-                        CMP         #'A'
-                        BCC         ?HTN_BAD
-                        CMP         #'G'
-                        BCS         ?HTN_BAD
-                        SEC
-                        SBC         #'A'-10
-                        RTS
-?HTN_DEC:
-                        SEC
-                        SBC         #'0'
-                        RTS
-?HTN_BAD:
-                        CLC
-                        RTS
-
-; ----------------------------------------------------------------------------
 ; SUBROUTINE: CHECK_BYTE
 ; DESCRIPTION: CHECKS UART STATUS
 ; INPUT: NONE
@@ -7252,110 +7214,6 @@ CHECK_BYTE:
                         JSR         WDC_CHECK_BYTE ; CALL ROM STATUS
                         RTS             ; DONE
 
-; ----------------------------------------------------------------------------
-; PROVENANCE NOTE:
-; The hex-to-ASCII adjustment pattern below follows the method described in:
-;   - "6502 Assembly Language Programming" (Lance A. Leventhal), p. 7-3
-; Leventhal cites (superscript 1; bibliographic entry listed on p. 7-15):
-;   - D. R. Allison, "A Design Philosophy for Microcomputer Architectures."
-;     Computer, February 1977, pp. 35-41.
-; ----------------------------------------------------------------------------
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CVT_NIBBLE
-; DESCRIPTION: CONVERTS LOW NIBBLE IN ACC TO ASCII HEX
-; INPUT: ACC = VALUE (0-F)
-; OUTPUT: ACC = ASCII ('0'-'9', 'A'-'F')
-; FLAGS: DECIMAL MODIFIED THEN CLEARED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-CVT_NIBBLE:
-                        SED             ; SET DECIMAL
-                        CLC             ; CLEAR CARRY
-                        ADC         #$90 ; MAGIC HEX ADC
-                        ADC         #$40 ; ADJUST FOR ASCII
-                        CLD             ; CLEAR DECIMAL
-                        RTS             ; RETURN CHAR
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CVT_PRT_NIBBLE
-; DESCRIPTION: CONVERTS AND PRINTS NIBBLE
-; INPUT: ACC = VALUE
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-CVT_PRT_NIBBLE:
-                        JSR         CVT_NIBBLE ; CONVERT TO ASCII
-                        JSR         WRITE_BYTE ; PRINT CHAR
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_HEX
-; DESCRIPTION: PRINTS 8-BIT VALUE IN HEX
-; INPUT: ACC = BYTE
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: NONE
-; ----------------------------------------------------------------------------
-PRT_HEX:
-                        PUSH        A   ; SAVE ACC
-                        LSR         A   ; SHIFT HI NIBBLE
-                        LSR         A   ; DOWN
-                        LSR         A   ; TO
-                        LSR         A   ; LO
-                        JSR         CVT_PRT_NIBBLE ; PRINT HI NIBBLE
-                        PULL        A   ; RESTORE ACC
-                        AND         #%00001111 ; MASK LO NIBBLE
-                        JSR         CVT_PRT_NIBBLE ; PRINT LO NIBBLE
-                        RTS             ; DONE
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_HEX_WORD_AX
-; DESCRIPTION: PRINTS 16-BIT WORD IN HEX (HIGH BYTE THEN LOW BYTE)
-; INPUT: A = HIGH BYTE, X = LOW BYTE
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ----------------------------------------------------------------------------
-PRT_HEX_WORD_AX:
-                        PUSH        X
-                        JSR         PRT_HEX
-                        PULL        X
-                        TXA
-                        JSR         PRT_HEX
-                        RTS
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_WORD_FROM_PARSE
-; DESCRIPTION: PRINTS CMD_PARSE_VAL AS 16-BIT HEX (HI THEN LO)
-; INPUT: CMD_PARSE_VAL/CMD_PARSE_VAL+1
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ----------------------------------------------------------------------------
-PRT_WORD_FROM_PARSE:
-                        LDA         CMD_PARSE_VAL+1
-                        LDX         CMD_PARSE_VAL
-                        JSR         PRT_HEX_WORD_AX
-                        RTS
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: PRT_C_STRING
-; DESCRIPTION: PRINTS NULL-TERMINATED STRING
-; INPUT: STR_PTR (ZP) = ADDR OF STRING
-; OUTPUT: NONE
-; FLAGS: UNCHANGED
-; ZP USED: STR_PTR
-; ----------------------------------------------------------------------------
-PRT_C_STRING:           PUSH        A, Y ; SAVE REGS
-                        LDY         #$00 ; RESET INDEX
-?STRING_LOOP:           LDA         (STR_PTR),Y ; GET CHAR
-                        BEQ         ?STRING_DONE ; EXIT IF NULL
-                        JSR         WRITE_BYTE ; SEND CHAR
-                        INY             ; NEXT INDEX
-                        BNE         ?STRING_LOOP ; LOOP IF NOT WRAP
-                        INC         STR_PTR+1 ; CROSS PAGE
-                        BRA         ?STRING_LOOP ; REPEAT
-?STRING_DONE:           PULL        Y, A ; RESTORE
-                        RTS             ; DONE
 
 MAIN_INIT:
                         JSR         INIT_IRQ ; SETUP IRQ JUMP
@@ -7369,6 +7227,7 @@ MAIN_INIT:
                         LDA         #SYSF_NMI_FLAG_M
                         TRB         SYS_FLAGS
                         RTS
+
 ; ----------------------------------------------------------------------------
 ; DATA SEGMENT
 ; ----------------------------------------------------------------------------
@@ -7581,7 +7440,7 @@ MSG_HELP_FULL_23:       DB          $0D, $0A, $0D, $0A
                         DB          "  [PROTECTION]"
                         DB          0
 MSG_HELP_FULL_24:       DB          $0D, $0A
-                        DB          "  F/M/C/A/N/L      PROTECT $0000-$03FF BY"
+                        DB          "  F/M/C/A/N/L      PROTECT $0000-$0FFF BY"
                         DB          " DEFAULT", 0
 MSG_HELP_FULL_25:       DB          $0D, $0A
                         DB          "  !<CMD> ...       FORCE-ENABLE LOW-RAM A"
@@ -7698,7 +7557,7 @@ MSG_Q_WAIT:             DB          $0D, $0A, "Q HALT - RESET/NMI TO RESUME"
                         DB          0
 MSG_M_USAGE:            DB          $0D, $0A, "USAGE: M [START [B0..B15]]", 0
 MSG_PROTECT_ERR:        DB          $0D, $0A
-                        DB          "PROTECTED RANGE ($0000-$03FF). USE ! TO "
+                        DB          "PROTECTED RANGE ($0000-$0FFF). USE ! TO "
                         DB          "FORCE", 0
 STR_RST:                DB          "RST: ", 0
 STR_RST_NAME:           DB          " **RST_PLACEHOLDER**", 0

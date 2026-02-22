@@ -1,18 +1,18 @@
 # bso2 Demo Transcript
 
-Source: `DOCS/bso2 demo.txt`
+Source: `DOCS/transcripts/bso2-demo.txt`
 
 Note: this is a historical capture. Current monitor help/command lists may differ (for example, `T` clear-screen and include-model updates via `EQUATES.INC`).
 
 Related focused search transcript:
-- Clean: [bso2 S demo.txt](./bso2%20S%20demo.txt)
+- Clean: [bso2-s-demo.txt](./transcripts/bso2-s-demo.txt)
 
 Homage: this demo honors your Ohio Scientific `C1P`, later expanded into a `C2P` with disk and `bso2` startup.
 
 ## Hello World S28 Milestone
 
 **Milestone timestamp:** `2026-02-18T14:40:00-06:00`  
-**Verification capture:** [DOCS/hello-world.txt](./hello-world.txt)
+**Verification capture:** [hello-world.txt](./transcripts/hello-world.txt)
 
 Highlights from the verification capture:
 - `L S READY - SEND S-RECORDS (ABORT WITH SX)`

@@ -24,8 +24,8 @@ Do **not** track generated tool outputs:
 - `*.log`
 - `*.zip`
 
-`DOCS/monitor_usage.pdf` is intentionally tracked as a distributable document generated from `DOCS/monitor_usage.html`.
-`ZERO_PAGE_USAGE.pdf` is intentionally tracked as a distributable document generated from `ZERO_PAGE_USAGE.md`.
+`DOCS/reference/monitor-usage.pdf` is intentionally tracked as a distributable document generated from `DOCS/reference/monitor-usage.html`.
+`DOCS/reference/zero-page-usage.pdf` is intentionally tracked as a distributable document generated from `DOCS/reference/zero-page-usage.md`.
 
 Quick check:
 
@@ -42,11 +42,11 @@ make -C SRC all
 ```
 
 - If command behavior/output changed:
-  - update `DOCS/monitor_usage.html`
-  - regenerate `DOCS/monitor_usage.pdf` (headless Edge)
+  - update `DOCS/reference/monitor-usage.html`
+  - regenerate `DOCS/reference/monitor-usage.pdf` (headless Edge)
 - If zero-page map/docs changed:
-  - update `ZERO_PAGE_USAGE.md`
-  - regenerate `ZERO_PAGE_USAGE.pdf`
+  - update `DOCS/reference/zero-page-usage.md`
+  - regenerate `DOCS/reference/zero-page-usage.pdf`
 
 ## 4) Final Review
 

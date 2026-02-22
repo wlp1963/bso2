@@ -21,7 +21,7 @@
                         PL          60
                         PW          132
 
-                        INCLUDE     MACROS.INC
+                        INCLUDE     ../INCLUDES/macros.inc
 
 ; --- EXTERNAL WDC ROM ENTRY POINTS ---
 WDC_INIT_SERIAL         EQU         $F800 ; ROM SERIAL INIT
@@ -90,8 +90,8 @@ DBG_MODE_IRQ            EQU         2
 DBG_MODE_BRK            EQU         3
 MOD_MAX_BYTES           EQU         16  ; MAX INLINE BYTE DEPOSITS FOR M
 F_MAX_BYTES             EQU         16  ; MAX BYTE PATTERN LENGTH FOR F
-PROTECT_HI_LIMIT        EQU         $04
-                                        ; ADDR < $0400 IS PROTECTED (UNLESS
+PROTECT_HI_LIMIT        EQU         $10
+                                        ; ADDR < $1000 IS PROTECTED (UNLESS
                                         ; FORCED)
 
 ; --- FIXED ADDRESS CONTRACTS (LOW/HIGH) ---

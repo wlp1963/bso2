@@ -4,7 +4,7 @@ This project is MIT-licensed for original code in this repository.
 
 ## Western Design Center (WDC)
 
-- `WDC`, `W65C02`, and `W65C02EDU` are names associated with Western Design Center, Inc.
+- `WDC`, `W65C02`, and `W65C02SXB/EDU` are names associated with Western Design Center, Inc.
 - Official site references: `https://wdc65xx.com/` and `https://westerndesigncenter.com/`
 - Disclosure: references to WDC products/sites are informational only and do not imply sponsorship or paid promotion.
 - This project references WDC hardware/platform behavior and toolchain usage.
@@ -12,18 +12,15 @@ This project is MIT-licensed for original code in this repository.
 
 ### WDCMONv2 Integration Note
 
-- `bso2` plans to use `WDCMONv2` FLASH behavior through wrappers/trampolines.
-- Intended usage is interface/protocol compatibility and wrapper invocation flow, not direct source-text copy.
 - If direct source from `WDCMONv2` is ever imported, that import must include:
 - upstream license/permission verification
 - explicit attribution/provenance entry in this file
 - clear file-level notice describing what was copied vs. newly written
-- Current local `WDCMONv2` workspace inspected at `C:\Users\Walter\Documents\PROJECTS\WDCMONv2` did not contain an obvious `LICENSE/COPYING/NOTICE` file; treat upstream licensing status as unresolved until confirmed.
 
 ### WDC EDU sample provenance
 
 - Upstream archive source used during development:
-  - `W65C02SXB (1).zip` -> `02EDU_GettingStarted.zip` -> `EDU_GettingStarted/ASM/`
+  - `W65C02SXB.zip` -> `02EDU_GettingStarted.zip` -> `EDU_GettingStarted/ASM/`
 - Upstream files referenced/derived from:
   - `EDUGS_FLASH.asm`
   - `02EDU.inc`

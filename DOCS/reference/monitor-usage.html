@@ -214,7 +214,7 @@ IRQ: FFFE &gt; 800A &gt; [0086] &gt; A941 &gt; BSO2_IRQ_BRK_HW_DISPATCH
     <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$AFA1</code>).</li>
     <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>TERM_WIDTH_TIMEOUT=$007B</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>, <code>BRK_HOOK=$0089</code>, <code>HW_HOOK=$008C</code>.</li>
     <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
-    <li>Detailed zero-page map: <a href="../ZERO_PAGE_USAGE.md"><code>ZERO_PAGE_USAGE.md</code></a> and <a href="../ZERO_PAGE_USAGE.pdf"><code>ZERO_PAGE_USAGE.pdf</code></a>.</li>
+    <li>Detailed zero-page map: <a href="./zero-page-usage.md"><code>zero-page-usage.md</code></a> and <a href="./zero-page-usage.pdf"><code>zero-page-usage.pdf</code></a>.</li>
     <li>UDATA starts at <code>$0200</code>:</li>
   </ul>
   <p class="mono">RBUF_DATA    32 bytes

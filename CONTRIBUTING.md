@@ -33,8 +33,8 @@ make -C SRC all
 
 - Build must pass (`make -C SRC all`).
 - If behavior changed, include at least one monitor transcript snippet in the PR description.
-- If help/output text changed, update `DOCS/monitor_usage.html` and regenerate `DOCS/monitor_usage.pdf`.
-- If zero-page documentation changed, update `ZERO_PAGE_USAGE.md` and regenerate `ZERO_PAGE_USAGE.pdf`.
+- If help/output text changed, update `DOCS/reference/monitor-usage.html` and regenerate `DOCS/reference/monitor-usage.pdf`.
+- If zero-page documentation changed, update `DOCS/reference/zero-page-usage.md` and regenerate `DOCS/reference/zero-page-usage.pdf`.
 
 ## Pull Request Checklist
 
