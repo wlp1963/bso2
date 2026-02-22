@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Added `L G S` / `LGS` load-go workflow: load Motorola S-records and auto-execute on successful load.
 - Added monitor command `T` for terminal clear (`LF` x24 then `CR`).
 - Added boot decision truth-table documentation for power-on and reset startup paths.
+- Added reusable utility library sources/artifacts (`SRC/lib.asm`, `SRC/lib.lib`) for shared monitor/demo helper routines.
 - Added patchable IRQ sub-dispatch trampolines:
   - `BRK_HOOK` at `$0089-$008B`
   - `HW_HOOK` at `$008C-$008E`
@@ -19,8 +20,10 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Standardized project release marker format to `R#M#V#I##` and set current marker to `R0M0V1I00`.
+- Separated include files out of `SRC/` into `INCLUDES/` and updated assembler include paths for monitor and demo builds.
 - Broke hardware/constants definitions out into `INCLUDES/equates.inc`; `SRC/bso2.asm` now includes equates through a single include.
 - `INCLUDES/equates.inc` now serves as the include entry point for monitor builds and automatically includes `macros.inc`.
+- Extracted stable utility routines from `SRC/bso2.asm` into `SRC/lib.asm`; build now creates/links `lib.lib` for `bso2` and `hello-world`.
 - Split startup selection behavior:
   - Power-on uses `C/M`, 6-second wait, `>` ticks, timeout defaults to `C`.
   - Reset-cookie uses `C/W/M`, 6-second wait, `<` ticks, timeout defaults to `M`.
