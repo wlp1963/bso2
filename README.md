@@ -13,24 +13,24 @@ Current release marker: `R0M0V1I00`
 - Table-driven command dispatcher and ring-buffer parser
 
 - Commands:
-    `?`     Short Help
-    `H`     Long Help
-    `Z`     Zero Memory
-    `T`     Terminal command path
-    `D`     Dump Memory
-    `U`     Unassemble
-    `A`     Assemble
-    `X`     Execute
-    `G`     Game
-    `I`     Info/Inspect command pash
-    `R`     Restart (in DEBUG)
-    `N`     Next (in DEBUG)
-    `M`     Modify Memory, bulk and Interactive
-    `F`     Fill Memory
-    `S`     Search Memory
-    `L`     Load Command Path
-    `Q`     Quit
-    `V`     Vectors
+  -  `?`     Short Help
+  -  `H`     Long Help
+  -  `Z`     Zero Memory
+  -  `T`     Terminal
+  -  `D`     Dump Memory
+  -  `U`     Unassemble
+  -  `A`     Assemble
+  -  `X`     Execute
+  -  `G`     Game
+  -  `I`     Info/Inspect 
+  -  `R`     Restart (in DEBUG)
+  -  `N`     Next (in DEBUG)
+  -  `M`     Modify Memory, bulk and Interactive
+  -  `F`     Fill Memory
+  -  `S`     Search Memory
+  -  `L`     Load
+  -  `Q`     Quit
+  -  `V`     Vectors
 
 - S28 Support
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
