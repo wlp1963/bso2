@@ -11,7 +11,7 @@ Current release marker: `R0M0V1I00`
 
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher and ring-buffer parser
-
+- C/W/M Prompt, Coldstart, Warmstart, Monitor
 - Commands:
   -  `?`     Short Help
   -  `H`     Long Help

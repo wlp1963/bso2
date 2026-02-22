@@ -138,7 +138,7 @@ That behavior is expected. If in doubt, verify with a direct boundary dump:
 
 ## Personal Milestones
 - `2026-02-20T01:53:28-06:00 Prerelease R0M0V0I00 in commit 0ac9fd699e2758b7d57b87567d660ad1623eea73.`
-- Milestone: independently assembled 65C02 program loaded via S28 and executed on W65C02EDU at `2026-02-18T14:40:00-06:00`; validation output: `HELLO, WORLD`.
+- `2026-02-18T14:40:00-06:00`; independently assembled 65C02 program loaded via S28 and executed on W65C02EDU atvalidation output: `HELLO, WORLD`.
 - `2026-02-18T18:50:20-06:00` - `L G S` / `LGS` implemented: S-record load-and-go now auto-executes, including fallback when S7/S8/S9 entry is zero.
-- Milestone: David Gray (WDC) invited to this repository at `2026-02-17T14:21:00-06:00`.
-- Milestone: historical RLE design-note rationale documented at `2026-02-16T00:45:50-06:00`.
+- `2026-02-17T14:21:00-06:00` David Gray (WDC) invited to this repository at .
+- `2026-02-16T00:45:50-06:00` historical RLE design-note rationale documented
