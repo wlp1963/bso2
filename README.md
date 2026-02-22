@@ -11,6 +11,8 @@ Current release marker: `R0M0V1I00`
 
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher and ring-buffer parser
+- Help `?` Short Help `H` long help
+- Memory Commands `D`ump `M`odify `F`ill `S`earch `C`opy
 - Command set: `? H Z T W D U A X G I R N M F S L C Q V`
 - `L G S` / `LGS` load-go support for Motorola S-record workflows
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
