@@ -15,6 +15,8 @@ Current release marker: `R0M0V1I00`
 - `L G S` / `LGS` load-go support for Motorola S-record workflows
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
 - BRK debug context output with `CURR` / `NEXT` / `STATE` lines
+- An `A`ssembler and `U`nassembler
+- `G` Guess a number game
 
 ## Quick Start
 
