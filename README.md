@@ -11,14 +11,30 @@ Current release marker: `R0M0V1I00`
 
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher and ring-buffer parser
-- Help `?` Short Help `H` long help
-- Memory Commands `D`ump `M`odify `F`ill `S`earch `C`opy
-- Command set: `? H Z T W D U A X G I R N M F S L C Q V`
-- `L G S` / `LGS` load-go support for Motorola S-record workflows
+
+- Commands:
+    `?`     Short Help
+    `H`     Long Help
+    `Z`     Zero Memory
+    `T`     Terminal command path
+    `D`     Dump Memory
+    `U`     Unassemble
+    `A`     Assemble
+    `X`     Execute
+    `G`     Game
+    `I`     Info/Inspect command pash
+    `R`     Restart (in DEBUG)
+    `N`     Next (in DEBUG)
+    `M`     Modify Memory, bulk and Interactive
+    `F`     Fill Memory
+    `S`     Search Memory
+    `L`     Load Command Path
+    `Q`     Quit
+    `V`     Vectors
+
+- S28 Support
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
 - BRK debug context output with `CURR` / `NEXT` / `STATE` lines
-- An `A`ssembler and `U`nassembler
-- `G` Guess a number game
 
 ## Quick Start
 
