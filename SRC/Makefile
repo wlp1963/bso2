@@ -2,7 +2,9 @@
 # Copyright (c) 2026 95west.us
 # See LICENSE for full license text.
 
-all:		modules bso2 hello
+all:		modules bso2 hello games
+
+games:		modules life mastermind chess adventure
 
 modules:	lib.asm ../INCLUDES/equates.inc ../INCLUDES/macros.inc
 			del /f lib.obj lib.lib lib.lst
@@ -49,4 +51,12 @@ mastermind: modules
 life: modules
 	wdc02as -i ../INCLUDES -g -l -s life.asm
 	WDCLN -g -sz -t -HM28 -PFF -J -Q life -Llib -C5000
+
+chess: modules
+	wdc02as -i ../INCLUDES -g -l -s chess.asm
+	WDCLN -g -sz -t -HM28 -PFF -J -Q chess -Llib -C6000
+
+adventure: modules
+	wdc02as -i ../INCLUDES -g -l -s adventure.asm
+	WDCLN -g -sz -t -HM28 -PFF -J -Q adventure -Llib -C7000
 

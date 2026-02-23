@@ -192,6 +192,10 @@ RPN_STACK:              DS          RPN_STACK_DEPTH*2 ; I C VALUE STACK (LO/HI)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
 SREC_FIRST_ADDR:        DS          2   ; FIRST S1/S2/S3 ADDRESS FOR LGS FALLBACK
 SREC_FIRST_VALID:       DS          1   ; 1 IF SREC_FIRST_ADDR IS VALID
+SREC_LOAD_MIN:          DS          2   ; LOWEST DATA BYTE ADDR WRITTEN BY L S
+SREC_LOAD_MAX:          DS          2   ; HIGHEST DATA BYTE ADDR WRITTEN BY L S
+SREC_LOAD_COUNT:        DS          2   ; TOTAL DATA BYTES WRITTEN BY L S
+SREC_LOAD_VALID:        DS          1   ; 1 IF ANY DATA BYTE WAS WRITTEN
 HEARTBEAT_MODE:         DS          1   ; I T0 MODE: '1'=ON, '7'=FAST HB, 'F'=SLOW HB, $80=WIG-WAG
 ROM_CSUM32:             DS          4   ; 32-BIT CHECKSUM ACCUMULATOR (B0..B3)
 WARM_RESUME_RESTORE_PENDING:
@@ -3343,6 +3347,13 @@ CMD_DO_LOAD_SREC:
                         STZ         SREC_FIRST_VALID
                         STZ         SREC_FIRST_ADDR
                         STZ         SREC_FIRST_ADDR+1
+                        STZ         SREC_LOAD_VALID
+                        STZ         SREC_LOAD_COUNT
+                        STZ         SREC_LOAD_COUNT+1
+                        STZ         SREC_LOAD_MIN
+                        STZ         SREC_LOAD_MIN+1
+                        STZ         SREC_LOAD_MAX
+                        STZ         SREC_LOAD_MAX+1
                         PRT_CSTRING MSG_LS_READY
 
 ?LS_REC_LOOP:
@@ -3607,6 +3618,17 @@ CMD_DO_LOAD_SREC:
                         LDX         SREC_FIRST_ADDR
                         JSR         PRT_HEX_WORD_AX
 ?LS_DONE_SKIP_FIRST:
+                        LDA         SREC_LOAD_VALID
+                        BEQ         ?LS_DONE_SKIP_LOAD_STATS
+                        PRT_CSTRING MSG_LS_END
+                        LDA         SREC_LOAD_MAX+1
+                        LDX         SREC_LOAD_MAX
+                        JSR         PRT_HEX_WORD_AX
+                        PRT_CSTRING MSG_LS_SIZE
+                        LDA         SREC_LOAD_COUNT+1
+                        LDX         SREC_LOAD_COUNT
+                        JSR         PRT_HEX_WORD_AX
+?LS_DONE_SKIP_LOAD_STATS:
                         PRT_CSTRING MSG_LS_GO
                         LDA         PTR_TEMP+1
                         LDX         PTR_TEMP
@@ -3702,6 +3724,52 @@ SREC_WRITE_BYTE:
                         SEC
                         RTS
 ?SWB_OK:
+                        LDA         SREC_LOAD_VALID
+                        BNE         ?SWB_TRACK_MINMAX
+                        LDA         PTR_TEMP
+                        STA         SREC_LOAD_MIN
+                        STA         SREC_LOAD_MAX
+                        LDA         PTR_TEMP+1
+                        STA         SREC_LOAD_MIN+1
+                        STA         SREC_LOAD_MAX+1
+                        LDA         #$01
+                        STA         SREC_LOAD_VALID
+                        BRA         ?SWB_TRACK_COUNT
+
+?SWB_TRACK_MINMAX:
+                        LDA         PTR_TEMP+1
+                        CMP         SREC_LOAD_MIN+1
+                        BCC         ?SWB_SET_MIN
+                        BNE         ?SWB_CHK_MAX
+                        LDA         PTR_TEMP
+                        CMP         SREC_LOAD_MIN
+                        BCC         ?SWB_SET_MIN
+                        BRA         ?SWB_CHK_MAX
+?SWB_SET_MIN:
+                        LDA         PTR_TEMP
+                        STA         SREC_LOAD_MIN
+                        LDA         PTR_TEMP+1
+                        STA         SREC_LOAD_MIN+1
+
+?SWB_CHK_MAX:
+                        LDA         PTR_TEMP+1
+                        CMP         SREC_LOAD_MAX+1
+                        BCC         ?SWB_TRACK_COUNT
+                        BNE         ?SWB_SET_MAX
+                        LDA         PTR_TEMP
+                        CMP         SREC_LOAD_MAX
+                        BCC         ?SWB_TRACK_COUNT
+?SWB_SET_MAX:
+                        LDA         PTR_TEMP
+                        STA         SREC_LOAD_MAX
+                        LDA         PTR_TEMP+1
+                        STA         SREC_LOAD_MAX+1
+
+?SWB_TRACK_COUNT:
+                        INC         SREC_LOAD_COUNT
+                        BNE         ?SWB_ADV_PTR
+                        INC         SREC_LOAD_COUNT+1
+?SWB_ADV_PTR:
                         INC         PTR_TEMP
                         BNE         ?SWB_DONE
                         INC         PTR_TEMP+1
@@ -8428,6 +8496,8 @@ MSG_LS_READY:           DB          $0D, $0A
                         DB          0
 MSG_LS_DONE:            DB          $0D, $0A, "L S LOAD COMPLETE", 0
 MSG_LS_FIRST:           DB          $0D, $0A, "L S FIRST @ $", 0
+MSG_LS_END:             DB          $0D, $0A, "L S END @ $", 0
+MSG_LS_SIZE:            DB          $0D, $0A, "L S SIZE = $", 0
 MSG_LS_GO:              DB          $0D, $0A, "L S GO @ $", 0
 MSG_LS_ABORT:           DB          $0D, $0A, "L S ABORTED", 0
 MSG_LS_PARSE_ERR:       DB          $0D, $0A, "L S RECORD FORMAT ERROR", 0
