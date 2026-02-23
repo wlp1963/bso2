@@ -9,6 +9,7 @@
 *.bin
 *.map
 *.lst
+*.lib
 
 # Archives
 *.zip

@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - Added `L G S` / `LGS` load-go workflow: load Motorola S-records and auto-execute on successful load.
 - Added monitor command `T` for terminal clear (`LF` x24 then `CR`).
 - Added boot decision truth-table documentation for power-on and reset startup paths.
-- Added reusable utility library sources/artifacts (`SRC/lib.asm`, `SRC/lib.lib`) for shared monitor/demo helper routines.
+- Added reusable utility library source (`SRC/lib.asm`) for shared monitor/demo helper routines.
 - Added patchable IRQ sub-dispatch trampolines:
   - `BRK_HOOK` at `$0089-$008B`
   - `HW_HOOK` at `$008C-$008E`
@@ -24,6 +24,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Bumped current release marker to `R0M0V2I01` (`I` = `INTERNAL`).
+- Deduplicated `R START` launch flow into shared helper `CMD_LAUNCH_PARSED_ADDR` (used by `R START` and `!R START` force-run path), reducing monitor `CODE` by 89 bytes.
+- Expanded runtime 32-bit boot-banner checksum coverage from ROM range `$8000..$EFFF` to `$8000..$FFFF` (inclusive).
 - Removed monitor command-mode warmstart (`W`) from command dispatch; warm path remains available via reset startup selection (`C/W/M`).
 - Expanded command parser limit from `CMD_MAX_LEN=31` to `CMD_MAX_LEN=64`.
 - `T` command now owns terminal control: clear (`T`/`T C`) plus width set (`20/40/80/132`).
@@ -90,5 +92,4 @@ All notable changes to this project will be documented in this file.
 - `SRC/bso2.asm`
 - `SRC/hello-world.s28`
 - `SRC/lib.asm`
-- `SRC/lib.lib`
 - `STORIES.md`

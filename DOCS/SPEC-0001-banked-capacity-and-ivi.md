@@ -1,6 +1,8 @@
 # SPEC-0001: bso2 Capacity Expansion, Banking, and IVI Policy
 
-Status: Draft
+Status: Draft (Rev 2)
+Revision: 2
+Date: 2026-02-23
 
 ## Contributors
 
@@ -137,12 +139,12 @@ Adopt the hybrid path:
 
 ## IVI Command Family (Draft)
 
-- Naming provenance: `IVI` / `IVS` / `IVC` / `IVR` / `IVX` were born from an AI suggestion phrase: **Inspect Vector Indirection**.
+- Naming provenance: `IVI` / `IVS` / `IVC` / `IVR` / `IVZ` were born from an AI suggestion phrase: **Inspect Vector Indirection**.
 - `IVI`: inspect live/staged/previous vector state.
 - `IVS <slot> <addr> [name]`: stage target.
 - `IVC <slot|ALL>`: commit staged targets.
 - `IVR <slot|ALL>`: rollback to previous committed targets.
-- `IVX <slot>`: clear staged target.
+- `IVZ <slot>`: clear staged target.
 
 Slots: `RST`, `NMI`, `IRQ`, `BRK`, `HW`.
 

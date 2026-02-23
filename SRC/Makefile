@@ -34,7 +34,7 @@ hello: modules
 	WDCLN -g -sz -t -HM28 -PFF -J -Q hello-world -Llib -C1000
 
 clean:
-	del /f *.obj *.lst *.sym *.map
+	del /f *.obj *.lst *.sym *.map *.bin
 
 realclean:
 	del /f *.obj *.lst *.sym *.map *.lib *.bin 

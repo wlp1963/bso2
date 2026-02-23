@@ -613,7 +613,7 @@ PRINT_BANNER_CSUM_LINE:
                         PRT_CSTRING MSG_BANNER_CSUM_PREFIX
                         LDY         #$08
                         JSR         PRT_SPACES_Y
-                        JSR         CHKSUM32_ROM_8000_EFFF
+                        JSR         CHKSUM32_ROM_8000_FFFF
                         JSR         PRT_HEX_DWORD_CSUM32
                         LDY         #$09
                         JSR         PRT_SPACES_Y
@@ -738,12 +738,12 @@ PRT_SPACES_Y:
                         RTS
 
 ; ----------------------------------------------------------------------------
-; SUBROUTINE: CHKSUM32_ROM_8000_EFFF
-; DESCRIPTION: SUMS BYTES IN $8000..$EFFF (INCLUSIVE), MODULO 2^32
+; SUBROUTINE: CHKSUM32_ROM_8000_FFFF
+; DESCRIPTION: SUMS BYTES IN $8000..$FFFF (INCLUSIVE), MODULO 2^32
 ; OUTPUT: ROM_CSUM32[0..3] HOLDS LOW..HIGH BYTES OF CHECKSUM
 ; CLOBBERS: A, X, Y, PTR_LEG
 ; ----------------------------------------------------------------------------
-CHKSUM32_ROM_8000_EFFF:
+CHKSUM32_ROM_8000_FFFF:
                         PHA
                         PHX
                         PHY
@@ -753,16 +753,16 @@ CHKSUM32_ROM_8000_EFFF:
                         LDA         #$80
                         STA         PTR_LEG+1 ; PTR HIGH => $8000
                         LDY         #$00
-?CR8E_LOOP:
+?CR8F_LOOP:
                         LDA         (PTR_LEG),Y
                         JSR         CHKSUM32_ADD_A
                         JSR         CHKSUM_PTR_INC
-?CR8E_CHK_END:
+?CR8F_CHK_END:
                         LDA         PTR_LEG+1
-                        CMP         #$F0 ; STOP AT $F000 (END+1)
-                        BNE         ?CR8E_LOOP
+                        CMP         #$00 ; STOP AT $0000 (END+1 AFTER $FFFF)
+                        BNE         ?CR8F_LOOP
                         LDA         PTR_LEG
-                        BNE         ?CR8E_LOOP
+                        BNE         ?CR8F_LOOP
                         PLY
                         PLX
                         PLA
@@ -2071,13 +2071,22 @@ CMD_DO_GO:
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
                         BNE         ?CG_USAGE
+                        JMP         CMD_LAUNCH_PARSED_ADDR
+?CG_USAGE:
+                        PRT_CSTRING MSG_G_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_LAUNCH_PARSED_ADDR
+; DESCRIPTION: ARMS R-RECALL/GO FLAG, THEN TRANSFERS CONTROL TO CMD_PARSE_VAL
+; INPUT: CMD_PARSE_VAL = TARGET ADDRESS
+; ----------------------------------------------------------------------------
+CMD_LAUNCH_PARSED_ADDR:
                         LDA         CMD_PARSE_VAL
                         STA         PTR_LEG
-                        LDA         CMD_PARSE_VAL+1
-                        STA         PTR_LEG+1
-                        LDA         CMD_PARSE_VAL
                         STA         REC_RUN_ADDR
                         LDA         CMD_PARSE_VAL+1
+                        STA         PTR_LEG+1
                         STA         REC_RUN_ADDR+1
                         LDA         #$01
                         STA         REC_RUN_VALID
@@ -2094,9 +2103,6 @@ CMD_DO_GO:
                         PHA
                         LDA         PTR_LEG
                         PHA
-                        RTS
-?CG_USAGE:
-                        PRT_CSTRING MSG_G_USAGE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2118,30 +2124,7 @@ CMD_DO_RESUME:
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
                         BNE         ?CR_RUN_USAGE
-                        LDA         CMD_PARSE_VAL
-                        STA         PTR_LEG
-                        LDA         CMD_PARSE_VAL+1
-                        STA         PTR_LEG+1
-                        LDA         CMD_PARSE_VAL
-                        STA         REC_RUN_ADDR
-                        LDA         CMD_PARSE_VAL+1
-                        STA         REC_RUN_ADDR+1
-                        LDA         #$01
-                        STA         REC_RUN_VALID
-                        LDA         #SYSF_GO_FLAG_M
-                        TSB         SYS_FLAGS
-                        LDA         PTR_LEG
-                        SEC
-                        SBC         #$01
-                        STA         PTR_LEG
-                        LDA         PTR_LEG+1
-                        SBC         #$00
-                        STA         PTR_LEG+1
-                        LDA         PTR_LEG+1
-                        PHA
-                        LDA         PTR_LEG
-                        PHA
-                        RTS
+                        JMP         CMD_LAUNCH_PARSED_ADDR
 ?CR_RUN_USAGE:
                         PRT_CSTRING MSG_R_USAGE
                         RTS
@@ -2205,30 +2188,7 @@ CMD_DO_RESUME:
                         RTS
 ?CR_FORCE_RUN:
                         STZ         BRK_FLAG ; EXPLICIT FORCE-RUN DROPS OLD CTX
-                        LDA         CMD_PARSE_VAL
-                        STA         PTR_LEG
-                        LDA         CMD_PARSE_VAL+1
-                        STA         PTR_LEG+1
-                        LDA         CMD_PARSE_VAL
-                        STA         REC_RUN_ADDR
-                        LDA         CMD_PARSE_VAL+1
-                        STA         REC_RUN_ADDR+1
-                        LDA         #$01
-                        STA         REC_RUN_VALID
-                        LDA         #SYSF_GO_FLAG_M
-                        TSB         SYS_FLAGS
-                        LDA         PTR_LEG
-                        SEC
-                        SBC         #$01
-                        STA         PTR_LEG
-                        LDA         PTR_LEG+1
-                        SBC         #$00
-                        STA         PTR_LEG+1
-                        LDA         PTR_LEG+1
-                        PHA
-                        LDA         PTR_LEG
-                        PHA
-                        RTS
+                        JMP         CMD_LAUNCH_PARSED_ADDR
 ?CR_USAGE_GENERIC:
                         PRT_CSTRING MSG_R_USAGE
                         RTS

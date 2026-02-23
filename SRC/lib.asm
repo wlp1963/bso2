@@ -73,7 +73,7 @@ PRT_HEX:
                         LSR         A   ; LO
                         JSR         CVT_PRT_NIBBLE ; PRINT HI NIBBLE
                         PLA
-                        PRT_HEX_WORD_AX
+                        PHA 
                         AND         #%00001111 ; MASK LO NIBBLE
                         JSR         CVT_PRT_NIBBLE ; PRINT LO NIBBLE
                         PLA
