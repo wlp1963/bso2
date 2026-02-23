@@ -217,6 +217,8 @@ HW_HOOK_SAVED:          DS          3   ; SAVED PRE-RESET HW_HOOK BYTES
                         
                         XDEF STR_PTR
                         XDEF CMD_PARSE_VAL
+                        XREF READ_BYTE_COUNT
+                        XREF WRITE_BYTE_COUNT
                         XREF WRITE_BYTE
                         XREF PUT_LED
                         XREF WDC_WRITE_BYTE
@@ -257,6 +259,14 @@ SYS_RST:
                         STZ         HEARTBEAT_PHASE
                         STZ         HEARTBEAT_DIV
                         STZ         MENU_MODE
+                        STZ         READ_BYTE_COUNT
+                        STZ         READ_BYTE_COUNT+1
+                        STZ         READ_BYTE_COUNT+2
+                        STZ         READ_BYTE_COUNT+3
+                        STZ         WRITE_BYTE_COUNT
+                        STZ         WRITE_BYTE_COUNT+1
+                        STZ         WRITE_BYTE_COUNT+2
+                        STZ         WRITE_BYTE_COUNT+3
                         LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
                         STA         TERM_COLS
                         STZ         TERM_CUR_COL
@@ -856,6 +866,21 @@ INIT_SERIAL:
 ; ZP USED: NONE
 ; ----------------------------------------------------------------------------
 READ_BYTE:
+                        SEI
+                        CLC
+                        LDA         READ_BYTE_COUNT
+                        ADC         #$01
+                        STA         READ_BYTE_COUNT
+                        LDA         READ_BYTE_COUNT+1
+                        ADC         #$00
+                        STA         READ_BYTE_COUNT+1
+                        LDA         READ_BYTE_COUNT+2
+                        ADC         #$00
+                        STA         READ_BYTE_COUNT+2
+                        LDA         READ_BYTE_COUNT+3
+                        ADC         #$00
+                        STA         READ_BYTE_COUNT+3
+                        CLI
                         JSR         WDC_READ_BYTE ; CALL ROM READ
                         RTS             ; RETURN TO CALLER
 
@@ -2563,7 +2588,7 @@ CMD_DO_GAME:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_INFO
 ; DESCRIPTION: INFO NAMESPACE ROOT
-; USAGE: I   OR   I A   OR   I T0 [0|1|7|F|80]   OR   I I [0|1]   OR
+; USAGE: I   OR   I A   OR   I X   OR   I T0 [0|1|7|F|80]   OR   I I [0|1]   OR
 ;        I M [0|1]   OR
 ;        I C <RPN TOKENS>   OR
 ;        IC <RPN TOKENS>
@@ -2575,8 +2600,12 @@ CMD_DO_INFO:
                         BEQ         ?CID_INFO
                         CMP         #'A'
                         BEQ         ?CID_ABOUT
+                        CMP         #'X'
+                        BEQ         ?CID_IO_COUNTS
                         CMP         #'T'
-                        BEQ         ?CID_TIMER
+                        BNE         ?CID_CHK_IRQ
+                        JMP         ?CID_TIMER
+?CID_CHK_IRQ:
                         CMP         #'I'
                         BNE         ?CID_CHK_CALC
                         JMP         ?CID_IRQ_MASK
@@ -2596,6 +2625,45 @@ CMD_DO_INFO:
                         RTS
 ?CID_ABOUT:
                         PRT_CSTRING MSG_I_ABOUT
+                        RTS
+?CID_IO_COUNTS:
+                        INX             ; PARSE AFTER 'X'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CID_USAGE
+
+                        ; Snapshot WRITE counter before printing to avoid
+                        ; self-count inflation while rendering I X output.
+                        SEI
+                        LDA         WRITE_BYTE_COUNT
+                        STA         PTR_LEG
+                        LDA         WRITE_BYTE_COUNT+1
+                        STA         PTR_LEG+1
+                        LDA         WRITE_BYTE_COUNT+2
+                        STA         PTR_TEMP
+                        LDA         WRITE_BYTE_COUNT+3
+                        STA         PTR_TEMP+1
+                        CLI
+
+                        PRT_CSTRING MSG_IX_READ
+                        LDA         READ_BYTE_COUNT+3
+                        JSR         PRT_HEX
+                        LDA         READ_BYTE_COUNT+2
+                        JSR         PRT_HEX
+                        LDA         READ_BYTE_COUNT+1
+                        JSR         PRT_HEX
+                        LDA         READ_BYTE_COUNT
+                        JSR         PRT_HEX
+
+                        PRT_CSTRING MSG_IX_WRITE
+                        LDA         PTR_TEMP+1
+                        JSR         PRT_HEX
+                        LDA         PTR_TEMP
+                        JSR         PRT_HEX
+                        LDA         PTR_LEG+1
+                        JSR         PRT_HEX
+                        LDA         PTR_LEG
+                        JSR         PRT_HEX
                         RTS
 ?CID_TIMER:
                         INX             ; PARSE AFTER 'T'
@@ -8593,7 +8661,7 @@ MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  I / I A / I T0 [0|1|7|F|80] / I I [0|1] / I M [0|1] / I C EXPR "
+                        DB          "  I / I A / I X / I T0 [0|1|7|F|80] / I I [0|1] / I M [0|1] / I C EXPR "
                         DB          "INFO / EASTER EGG / RPN CALC "
                         DB          "(16-BIT HEX TOKENS)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
@@ -8713,7 +8781,9 @@ MSG_II_USAGE:           DB          $0D, $0A, "USAGE: I I 1 (ENABLE IRQ) | I I 0
 MSG_IM_ON:              DB          $0D, $0A, "I M 1 MENU: ON (COMMAND PANEL)", 0
 MSG_IM_OFF:             DB          $0D, $0A, "I M 0 MENU: OFF", 0
 MSG_IM_USAGE:           DB          $0D, $0A, "USAGE: I M 1 (ON) | I M 0 (OFF)", 0
-MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1|7|F|80] | I I [0|1] | I M [0|1] | I C <RPN>", 0
+MSG_IX_READ:            DB          $0D, $0A, "I X READ_BYTE : $", 0
+MSG_IX_WRITE:           DB          $0D, $0A, "I X WRITE_BYTE: $", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I X | I T0 [0|1|7|F|80] | I I [0|1] | I M [0|1] | I C <RPN>", 0
 MSG_MENU_PROMPT:        DB          "[MENU] TYPE M FOR COMMAND PANEL", $0D, $0A, 0
 MSG_MENU_PANEL:         DB          $0D, $0A
                         DB          "  1  A  ASSEMBLE", $0D, $0A

@@ -1,7 +1,18 @@
                 PW 132
                 
                 INCLUDE ../INCLUDES/equates.inc
-                
+
+                MODULE LIB_COUNTERS
+                XDEF READ_BYTE_COUNT
+                XDEF WRITE_BYTE_COUNT
+
+                UDATA
+                ORG         $0400
+READ_BYTE_COUNT:        DS          4   ; READ_BYTE CALL COUNT (32-BIT, LO..HI)
+WRITE_BYTE_COUNT:       DS          4   ; WRITE_BYTE CALL COUNT (32-BIT, LO..HI)
+
+                CODE
+
 ; ----------------------------------------------------------------------------
 ; PROVENANCE NOTE:
 ; The hex-to-ASCII adjustment pattern below follows the method described in:
@@ -10,6 +21,7 @@
 ;   - D. R. Allison, "A Design Philosophy for Microcomputer Architectures."
 ;     Computer, February 1977, pp. 35-41.
 ; ----------------------------------------------------------------------------
+                ENDMOD
 
                 MODULE CVT_NIBBLE
                 XDEF CVT_NIBBLE
@@ -320,6 +332,7 @@ RNG8_NEXT:
 
                     XREF WDC_WRITE_BYTE
                     XREF PUT_LED
+                    XREF WRITE_BYTE_COUNT
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: WRITE_BYTE
@@ -330,6 +343,23 @@ RNG8_NEXT:
 ; ZP USED: NONE
 ; ----------------------------------------------------------------------------
 WRITE_BYTE:
+                        PHA
+                        SEI
+                        CLC
+                        LDA         WRITE_BYTE_COUNT
+                        ADC         #$01
+                        STA         WRITE_BYTE_COUNT
+                        LDA         WRITE_BYTE_COUNT+1
+                        ADC         #$00
+                        STA         WRITE_BYTE_COUNT+1
+                        LDA         WRITE_BYTE_COUNT+2
+                        ADC         #$00
+                        STA         WRITE_BYTE_COUNT+2
+                        LDA         WRITE_BYTE_COUNT+3
+                        ADC         #$00
+                        STA         WRITE_BYTE_COUNT+3
+                        CLI
+                        PLA
                         PHA
                         CMP         #$0D ; CR RESETS COLUMN TRACKING
                         BEQ         ?WB_CR

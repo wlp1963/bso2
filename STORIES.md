@@ -40,6 +40,8 @@ Quoted guidance:
 - `2026-02-22`: Add POR entropy seeding experiment: sample/mix startup RAM noise (`$0200-$7EFF`) into `RNG_STATE` on true power-on only; keep external TRNG/crypto-chip integration as a future optional path.
 - `2026-02-22`: Add terse interrupted-command resume hints (advisory only, no implicit resume) for deterministic commands (`D/U/S/F/C`) after `RESET` + `W`.
 - `2026-02-22`: Add warmstart recovery thoughts: after accidental `RESET`, print concise "where to restart" hints (last safe command cursor and last `R START` entry) while preserving clean monitor entry and explicit operator restart.
+- `2026-02-23`: Add SLIP support as a far-future item (deferred): decide scope first (`SLIP` framing only vs. minimal IP path), define monitor commands, and keep it parked until a comms-focused lane is active.
+- `2026-02-23`: Ponder command-grammar replacement (deferred, no implementation): move to strict `Family Verb [args]`, keep minimal families (`M` memory, `X` exec/debug, `I` inspect/config, `L` loaders, `H` help), reserve top-level singletons for global actions (`Z`, `Q`), keep permanent aliases for legacy commands, and enforce parser rule of only 1-2 command tokens before args.
 
 ## Author History (Draft)
 
