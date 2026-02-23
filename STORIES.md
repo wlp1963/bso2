@@ -42,6 +42,8 @@ Quoted guidance:
 - `2026-02-22`: Add warmstart recovery thoughts: after accidental `RESET`, print concise "where to restart" hints (last safe command cursor and last `R START` entry) while preserving clean monitor entry and explicit operator restart.
 - `2026-02-23`: Add SLIP support as a far-future item (deferred): decide scope first (`SLIP` framing only vs. minimal IP path), define monitor commands, and keep it parked until a comms-focused lane is active.
 - `2026-02-23`: Ponder command-grammar replacement (deferred, no implementation): move to strict `Family Verb [args]`, keep minimal families (`M` memory, `X` exec/debug, `I` inspect/config, `L` loaders, `H` help), reserve top-level singletons for global actions (`Z`, `Q`), keep permanent aliases for legacy commands, and enforce parser rule of only 1-2 command tokens before args.
+- `2026-02-23`: Add named vector-hook trampoline TODO (deferred): keep stable labels (`RST_*`, `NMI_*`, `BRK_*`, `HW_*`) as patch points, retarget by patching trampoline operands (not vector roots), and extend `V` output to print both symbolic hook name and current resolved target.
+- `2026-02-23`: Add system/user I/O state separation TODO (deferred): split monitor/system I/O state from user-program I/O state and define explicit save/restore boundaries for mode transitions and interrupt paths.
 
 ## Author History (Draft)
 

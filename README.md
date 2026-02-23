@@ -63,6 +63,12 @@ Clean:
 make -C SRC clean
 ```
 
+Docs regen:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1
+```
+
 PuTTY note: disable `Auto wrap mode initially on` for clean monitor output alignment.
 
 ## Documentation

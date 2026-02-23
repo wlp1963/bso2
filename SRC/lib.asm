@@ -327,6 +327,113 @@ RNG8_NEXT:
 
                         ENDMOD
 
+                        MODULE ADD_LE_BYTES
+                        XDEF  ADD_LE_BYTES
+
+                        XREF PTR_LEG
+                        XREF PTR_TEMP
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ADD_LE_BYTES
+; DESCRIPTION: ADDS LITTLE-ENDIAN SRC INTO LITTLE-ENDIAN DST IN PLACE
+; INPUT: PTR_LEG  = DST ADDRESS (RESULT WRITTEN IN PLACE)
+;        PTR_TEMP = SRC ADDRESS
+;        X        = DST LENGTH IN BYTES
+;        Y        = SRC LENGTH IN BYTES (MUST BE <= X)
+; OUTPUT: DST UPDATED, C=1 IF OVERFLOW PAST DST WIDTH, C=0 OTHERWISE
+; CLOBBERS: A, X, Y, PTR_LEG, PTR_TEMP
+; ----------------------------------------------------------------------------
+ADD_LE_BYTES:
+                        CLC
+?ALB_SRC_LOOP:
+                        CPY         #$00
+                        BEQ         ?ALB_PROP_CARRY
+                        LDA         (PTR_LEG)
+                        ADC         (PTR_TEMP)
+                        STA         (PTR_LEG)
+
+                        INC         PTR_LEG
+                        BNE         ?ALB_DST_PTR_OK
+                        INC         PTR_LEG+1
+?ALB_DST_PTR_OK:
+                        INC         PTR_TEMP
+                        BNE         ?ALB_SRC_PTR_OK
+                        INC         PTR_TEMP+1
+?ALB_SRC_PTR_OK:
+                        DEY
+                        DEX
+                        BRA         ?ALB_SRC_LOOP
+
+?ALB_PROP_CARRY:
+                        BCC         ?ALB_DONE
+?ALB_CARRY_LOOP:
+                        CPX         #$00
+                        BEQ         ?ALB_DONE
+                        LDA         (PTR_LEG)
+                        ADC         #$00
+                        STA         (PTR_LEG)
+
+                        INC         PTR_LEG
+                        BNE         ?ALB_DST2_PTR_OK
+                        INC         PTR_LEG+1
+?ALB_DST2_PTR_OK:
+                        DEX
+                        BCS         ?ALB_CARRY_LOOP
+?ALB_DONE:
+                        RTS
+
+                        ENDMOD
+
+                        MODULE ADD_LE_BYTES_SAFE
+                        XDEF  ADD_LE_BYTES_SAFE
+
+                        XREF ADD_LE_BYTES
+                        XREF PTR_LEG
+                        XREF PTR_TEMP
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ADD_LE_BYTES_SAFE
+; DESCRIPTION: SAFE WRAPPER FOR ADD_LE_BYTES
+; INPUT: PTR_LEG  = DST ADDRESS (RESULT WRITTEN IN PLACE)
+;        PTR_TEMP = SRC ADDRESS
+;        X        = DST LENGTH IN BYTES
+;        Y        = SRC LENGTH IN BYTES (MUST BE <= X)
+; OUTPUT: DST UPDATED, C=1 IF OVERFLOW PAST DST WIDTH, C=0 OTHERWISE
+; FLAGS: C PRESERVED FROM ADD_LE_BYTES RESULT
+; CLOBBERS: NONE (A, X, Y, PTR_LEG, PTR_TEMP PRESERVED)
+; ----------------------------------------------------------------------------
+ADD_LE_BYTES_SAFE:
+                        PHA
+                        PHX
+                        PHY
+
+                        LDA         PTR_LEG
+                        PHA
+                        LDA         PTR_LEG+1
+                        PHA
+                        LDA         PTR_TEMP
+                        PHA
+                        LDA         PTR_TEMP+1
+                        PHA
+
+                        JSR         ADD_LE_BYTES
+
+                        PLA
+                        STA         PTR_TEMP+1
+                        PLA
+                        STA         PTR_TEMP
+                        PLA
+                        STA         PTR_LEG+1
+                        PLA
+                        STA         PTR_LEG
+
+                        PLY
+                        PLX
+                        PLA
+                        RTS
+
+                        ENDMOD
+
                     MODULE WRITE_BYTE
                     XDEF WRITE_BYTE
 

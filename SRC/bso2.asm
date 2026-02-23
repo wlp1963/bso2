@@ -210,6 +210,7 @@ HW_HOOK_SAVED:          DS          3   ; SAVED PRE-RESET HW_HOOK BYTES
                         XREF PRT_C_STRING
                         XREF PRT_WORD_FROM_PARSE
                         XREF PRT_HEX_WORD_AX
+                        XREF CVT_PRT_NIBBLE
                         XREF HEX_TO_NIBBLE
                         XREF PRT_HEX
                         XREF PRT_CRLF
@@ -217,6 +218,8 @@ HW_HOOK_SAVED:          DS          3   ; SAVED PRE-RESET HW_HOOK BYTES
                         
                         XDEF STR_PTR
                         XDEF CMD_PARSE_VAL
+                        XDEF PTR_LEG
+                        XDEF PTR_TEMP
                         XREF READ_BYTE_COUNT
                         XREF WRITE_BYTE_COUNT
                         XREF WRITE_BYTE
@@ -626,13 +629,23 @@ PRINT_BANNER_SIZE_LINE:
 ; DESCRIPTION: PRINTS CENTERED 32-BIT CHECKSUM IN 25-CHAR INNER FIELD
 ; ----------------------------------------------------------------------------
 PRINT_BANNER_CSUM_LINE:
-                        ; CHECKSUM HEX LEN = 8, INNER WIDTH = 25 => L=8 R=9
                         PRT_CSTRING MSG_BANNER_CSUM_PREFIX
-                        LDY         #$08
-                        JSR         PRT_SPACES_Y
                         JSR         CHKSUM32_ROM_8000_FFFF
+                        JSR         CHKSUM32_HEX_DIGITS ; A=1..8 (DISPLAY LEN)
+                        STA         MOD_COUNT
+                        LDA         #$19 ; 25
+                        SEC
+                        SBC         MOD_COUNT ; TOTAL PAD
+                        LSR         A ; LEFT PAD = FLOOR(TOTAL/2), C=ODD?
+                        STA         CMD_PARSE_NIB ; LEFT PAD
+                        STA         BUF_IDX ; RIGHT PAD BASE
+                        BCC         ?PBCSL_PAD_READY
+                        INC         BUF_IDX ; RIGHT GETS EXTRA WHEN ODD
+?PBCSL_PAD_READY:
+                        LDY         CMD_PARSE_NIB
+                        JSR         PRT_SPACES_Y
                         JSR         PRT_HEX_DWORD_CSUM32
-                        LDY         #$09
+                        LDY         BUF_IDX
                         JSR         PRT_SPACES_Y
                         PRT_CSTRING MSG_BANNER_CSUM_SUFFIX
                         RTS
@@ -817,6 +830,56 @@ CHKSUM32_ADD_A:
                         RTS
 
 ; ----------------------------------------------------------------------------
+; SUBROUTINE: CHKSUM32_HEX_DIGITS
+; DESCRIPTION: RETURNS DISPLAY LENGTH FOR ROM_CSUM32 IN HEX (NO LEADING ZEROS)
+; INPUT: ROM_CSUM32[0..3]
+; OUTPUT: A=1..8
+; ----------------------------------------------------------------------------
+CHKSUM32_HEX_DIGITS:
+                        LDA         ROM_CSUM32+3
+                        BNE         ?CHD_B3
+                        LDA         ROM_CSUM32+2
+                        BNE         ?CHD_B2
+                        LDA         ROM_CSUM32+1
+                        BNE         ?CHD_B1
+                        LDA         ROM_CSUM32
+                        BNE         ?CHD_B0
+                        LDA         #$01
+                        RTS
+?CHD_B3:
+                        AND         #$F0
+                        BNE         ?CHD_8
+                        LDA         #$07
+                        RTS
+?CHD_B2:
+                        AND         #$F0
+                        BNE         ?CHD_6
+                        LDA         #$05
+                        RTS
+?CHD_B1:
+                        AND         #$F0
+                        BNE         ?CHD_4
+                        LDA         #$03
+                        RTS
+?CHD_B0:
+                        AND         #$F0
+                        BNE         ?CHD_2
+                        LDA         #$01
+                        RTS
+?CHD_2:
+                        LDA         #$02
+                        RTS
+?CHD_4:
+                        LDA         #$04
+                        RTS
+?CHD_6:
+                        LDA         #$06
+                        RTS
+?CHD_8:
+                        LDA         #$08
+                        RTS
+
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: CHKSUM_PTR_INC
 ; DESCRIPTION: INCREMENTS PTR_LEG 16-BIT POINTER
 ; ----------------------------------------------------------------------------
@@ -829,19 +892,72 @@ CHKSUM_PTR_INC:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: PRT_HEX_DWORD_CSUM32
-; DESCRIPTION: PRINTS ROM_CSUM32 AS 8 HEX DIGITS (HIGH BYTE FIRST)
+; DESCRIPTION: PRINTS ROM_CSUM32 AS HEX WITHOUT LEADING ZEROS (MIN "0")
 ; ----------------------------------------------------------------------------
 PRT_HEX_DWORD_CSUM32:
                         PHA
                         LDA         ROM_CSUM32+3
-                        JSR         PRT_HEX
+                        BNE         ?PHDC_B3
+                        LDA         ROM_CSUM32+2
+                        BNE         ?PHDC_B2
+                        LDA         ROM_CSUM32+1
+                        BNE         ?PHDC_B1
+                        LDA         ROM_CSUM32
+                        BNE         ?PHDC_B0
+                        LDA         #'0'
+                        JSR         WRITE_BYTE
+                        BRA         ?PHDC_DONE
+
+?PHDC_B3:
+                        JSR         PRT_HEX_TRIM_A
                         LDA         ROM_CSUM32+2
                         JSR         PRT_HEX
                         LDA         ROM_CSUM32+1
                         JSR         PRT_HEX
                         LDA         ROM_CSUM32
                         JSR         PRT_HEX
+                        BRA         ?PHDC_DONE
+
+?PHDC_B2:
+                        JSR         PRT_HEX_TRIM_A
+                        LDA         ROM_CSUM32+1
+                        JSR         PRT_HEX
+                        LDA         ROM_CSUM32
+                        JSR         PRT_HEX
+                        BRA         ?PHDC_DONE
+
+?PHDC_B1:
+                        JSR         PRT_HEX_TRIM_A
+                        LDA         ROM_CSUM32
+                        JSR         PRT_HEX
+                        BRA         ?PHDC_DONE
+
+?PHDC_B0:
+                        JSR         PRT_HEX_TRIM_A
+?PHDC_DONE:
                         PLA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_HEX_TRIM_A
+; DESCRIPTION: PRINTS A AS 1-2 HEX DIGITS (NO LEADING ZERO NIBBLE)
+; INPUT: A=BYTE
+; ----------------------------------------------------------------------------
+PRT_HEX_TRIM_A:
+                        PHA
+                        AND         #$F0
+                        BEQ         ?PHTA_SKIP_HI
+                        PLA
+                        PHA
+                        LSR         A
+                        LSR         A
+                        LSR         A
+                        LSR         A
+                        JSR         CVT_PRT_NIBBLE
+?PHTA_SKIP_HI:
+                        PLA
+                        AND         #$0F
+                        JSR         CVT_PRT_NIBBLE
                         RTS
 
 ; ----------------------------------------------------------------------------

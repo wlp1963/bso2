@@ -30,3 +30,5 @@ Use this file as the entry point for project documentation.
 
 - Treat the Markdown/HTML references in `DOCS/reference/` as canonical when there is any mismatch with generated artifacts.
 - `I T0` LED pattern quick note: `0=off`, `1=slow full-toggle`, `7=fast double-pulse`, `F=inverted slow heartbeat`, `80=PB0-3/PB4-7 wig-wag`.
+- Regenerate tracked doc PDFs with:
+  `powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1`

@@ -43,10 +43,19 @@ make -C SRC all
 
 - If command behavior/output changed:
   - update `DOCS/reference/monitor-usage.html`
-  - regenerate `DOCS/reference/monitor-usage.pdf` (headless Edge)
+  - regenerate tracked docs:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1
+```
+
 - If zero-page map/docs changed:
   - update `DOCS/reference/zero-page-usage.md`
-  - regenerate `DOCS/reference/zero-page-usage.pdf`
+  - optional: regenerate zero-page HTML (requires `pandoc`):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1 -RegenerateMdHtml
+```
 
 ## 4) Final Review
 

@@ -33,8 +33,17 @@ make -C SRC all
 
 - Build must pass (`make -C SRC all`).
 - If behavior changed, include at least one monitor transcript snippet in the PR description.
-- If help/output text changed, update `DOCS/reference/monitor-usage.html` and regenerate `DOCS/reference/monitor-usage.pdf`.
-- If zero-page documentation changed, update `DOCS/reference/zero-page-usage.md` and regenerate `DOCS/reference/zero-page-usage.pdf`.
+- Regenerate tracked docs with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1
+```
+
+- If zero-page Markdown changed and you want refreshed HTML too, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/docs/regenerate-docs.ps1 -RegenerateMdHtml
+```
 
 ## Pull Request Checklist
 
