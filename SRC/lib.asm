@@ -246,6 +246,75 @@ UTIL_TO_UPPER:
 
                         ENDMOD
 
+                        MODULE RNG_SEED_RAM_0_7EFF
+                        XDEF  RNG_SEED_RAM_0_7EFF
+
+                        XREF STR_PTR
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RNG_SEED_RAM_0_7EFF
+; DESCRIPTION: FOLDS RAM BYTES $0000..$7EFF INTO AN 8-BIT SEED
+; INPUT: A = CURRENT/PRIOR SEED BYTE
+; OUTPUT: A = SEEDED BYTE (NONZERO)
+; CLOBBERS: X, Y, STR_PTR
+; ----------------------------------------------------------------------------
+RNG_SEED_RAM_0_7EFF:
+                        EOR         #$A5 ; BIAS + MIX INPUT SEED
+                        BNE         ?RSR_INIT_OK
+                        LDA         #$5A ; NEVER START FROM ZERO
+?RSR_INIT_OK:
+                        TAX             ; X HOLDS RUNNING SEED
+                        STZ         STR_PTR
+                        STZ         STR_PTR+1
+?RSR_PAGE_LOOP:
+                        LDY         #$00
+?RSR_BYTE_LOOP:
+                        TXA
+                        EOR         (STR_PTR),Y
+                        CLC
+                        ADC         STR_PTR+1
+                        ROL         A
+                        EOR         #$1D
+                        TAX
+                        INY
+                        BNE         ?RSR_BYTE_LOOP
+                        INC         STR_PTR+1
+                        LDA         STR_PTR+1
+                        CMP         #$7F ; STOP AFTER PAGE $7E
+                        BNE         ?RSR_PAGE_LOOP
+                        TXA
+                        BNE         ?RSR_DONE
+                        LDA         #$5A
+?RSR_DONE:
+                        RTS
+
+                        ENDMOD
+
+                        MODULE RNG8_NEXT
+                        XDEF  RNG8_NEXT
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RNG8_NEXT
+; DESCRIPTION: ADVANCES AN 8-BIT LFSR (TAPS MASK $B8)
+; INPUT: A = CURRENT STATE
+; OUTPUT: A = NEXT STATE (NONZERO)
+; CLOBBERS: A
+; ----------------------------------------------------------------------------
+RNG8_NEXT:
+                        BNE         ?R8N_HAVE_SEED
+                        LDA         #$5A
+?R8N_HAVE_SEED:
+                        LSR         A
+                        BCC         ?R8N_NO_FB
+                        EOR         #$B8
+?R8N_NO_FB:
+                        BNE         ?R8N_DONE
+                        LDA         #$5A
+?R8N_DONE:
+                        RTS
+
+                        ENDMOD
+
                     MODULE WRITE_BYTE
                     XDEF WRITE_BYTE
 

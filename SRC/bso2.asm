@@ -208,6 +208,7 @@ HW_HOOK_SAVED:          DS          3   ; SAVED PRE-RESET HW_HOOK BYTES
                         XREF HEX_TO_NIBBLE
                         XREF PRT_HEX
                         XREF PRT_CRLF
+                        XREF RNG_SEED_RAM_0_7EFF
                         
                         XDEF STR_PTR
                         XDEF CMD_PARSE_VAL
@@ -2975,6 +2976,13 @@ RPN_DIV_16:
 ; OUTPUT: GAME_TARGET = 1..10
 ; ----------------------------------------------------------------------------
 GAME_PICK_TARGET:
+                        LDA         RNG_STATE
+                        BNE         ?GPT_HAVE_SEED
+                        JSR         RNG_SEED_RAM_0_7EFF
+                        STA         RNG_STATE
+                                        ; ONE-TIME RAM-SIGNATURE SEED WHEN
+                                        ; RNG STATE IS UNINITIALIZED
+?GPT_HAVE_SEED:
                         JSR         RNG_MIX_NCAXR ; A = RAW RNG BYTE
                         LDX         #$0A ; RANGE SIZE = 10
                         JSR         RNG_MOD_N ; A = 0..9
