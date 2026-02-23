@@ -65,6 +65,8 @@ static void usage(void) {
             "Commands:\n"
             "  term [--quit-char HEX]\n"
             "  lb-send BIN --addr HEX [--ready-timeout S] [--done-timeout S] [--no-wait-done]\n"
+            "  ls-send S28 [--ready-timeout S] [--done-timeout S] [--no-wait-done]\n"
+            "  lgs-send S28 [--ready-timeout S] [--done-timeout S] [--no-wait-done]\n"
             "  flash-read --addr HEX --len HEX --out FILE [--bank HEX]\n"
             "  flash-write --addr HEX --in FILE [--bank HEX] --force --confirm WRITE\n"
             "  flash-clear --force --confirm ERASE\n"
@@ -678,6 +680,121 @@ static int cmd_lb_send(int argc, char **argv, const struct common_opts *common) 
     return 0;
 }
 
+static int cmd_ls_send_common(int argc,
+                              char **argv,
+                              const struct common_opts *common,
+                              bool auto_go) {
+    const char *srec_file = NULL;
+    double ready_timeout = 5.0;
+    double done_timeout = 10.0;
+    bool no_wait_done = false;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+    int i;
+    int fd;
+    int state;
+    const char *cmd = auto_go ? "L G S\r" : "L S\r";
+    const uint8_t line_end[2] = {'\r', '\n'};
+
+    if (argc < 1) {
+        fprintf(stderr, "error: %s requires S28 file\n", auto_go ? "lgs-send" : "ls-send");
+        return 2;
+    }
+    srec_file = argv[0];
+
+    for (i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--ready-timeout") == 0) {
+            if (++i >= argc || parse_double_pos(argv[i], &ready_timeout) != 0) {
+                fprintf(stderr, "error: invalid --ready-timeout\n");
+                return 2;
+            }
+            continue;
+        }
+        if (strcmp(argv[i], "--done-timeout") == 0) {
+            if (++i >= argc || parse_double_pos(argv[i], &done_timeout) != 0) {
+                fprintf(stderr, "error: invalid --done-timeout\n");
+                return 2;
+            }
+            continue;
+        }
+        if (strcmp(argv[i], "--no-wait-done") == 0) {
+            no_wait_done = true;
+            continue;
+        }
+        fprintf(stderr, "error: unknown %s option: %s\n",
+                auto_go ? "lgs-send" : "ls-send", argv[i]);
+        return 2;
+    }
+
+    if (read_file(srec_file, &payload, &payload_len) != 0) {
+        return 1;
+    }
+
+    fd = open_serial(common->port, common->baud);
+    if (fd < 0) {
+        free(payload);
+        return 1;
+    }
+
+    if (write_all_fd(fd, (const uint8_t *)cmd, strlen(cmd)) != 0) {
+        close(fd);
+        free(payload);
+        return 1;
+    }
+
+    state = read_until_token(fd, "L S READY", "L S ABORTED", ready_timeout);
+    if (state == 2) {
+        fprintf(stderr, "\nerror: monitor aborted before S-record ready\n");
+        close(fd);
+        free(payload);
+        return 1;
+    }
+    if (state != 1) {
+        fprintf(stderr, "\nerror: did not receive L S READY\n");
+        close(fd);
+        free(payload);
+        return 1;
+    }
+
+    if (write_all_fd(fd, payload, payload_len) != 0) {
+        close(fd);
+        free(payload);
+        return 1;
+    }
+
+    if (payload_len > 0 &&
+        payload[payload_len - 1] != '\n' &&
+        payload[payload_len - 1] != '\r') {
+        if (write_all_fd(fd, line_end, sizeof(line_end)) != 0) {
+            close(fd);
+            free(payload);
+            return 1;
+        }
+    }
+
+    if (!no_wait_done) {
+        state = read_until_token(fd, "L S LOAD COMPLETE", "L S ABORTED", done_timeout);
+        if (state != 1) {
+            fprintf(stderr, "\nerror: S-record load did not complete\n");
+            close(fd);
+            free(payload);
+            return 1;
+        }
+    }
+
+    close(fd);
+    free(payload);
+    return 0;
+}
+
+static int cmd_ls_send(int argc, char **argv, const struct common_opts *common) {
+    return cmd_ls_send_common(argc, argv, common, false);
+}
+
+static int cmd_lgs_send(int argc, char **argv, const struct common_opts *common) {
+    return cmd_ls_send_common(argc, argv, common, true);
+}
+
 static int cmd_flash_read(int argc, char **argv, const struct common_opts *common) {
     uint16_t addr = 0;
     uint16_t len = 0;
@@ -1069,6 +1186,12 @@ int main(int argc, char **argv) {
     }
     if (strcmp(cmd, "lb-send") == 0) {
         return cmd_lb_send(argc - i, &argv[i], &common);
+    }
+    if (strcmp(cmd, "ls-send") == 0) {
+        return cmd_ls_send(argc - i, &argv[i], &common);
+    }
+    if (strcmp(cmd, "lgs-send") == 0) {
+        return cmd_lgs_send(argc - i, &argv[i], &common);
     }
     if (strcmp(cmd, "flash-read") == 0) {
         return cmd_flash_read(argc - i, &argv[i], &common);

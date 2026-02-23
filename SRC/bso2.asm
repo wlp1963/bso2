@@ -197,6 +197,7 @@ SREC_LOAD_MAX:          DS          2   ; HIGHEST DATA BYTE ADDR WRITTEN BY L S
 SREC_LOAD_COUNT:        DS          2   ; TOTAL DATA BYTES WRITTEN BY L S
 SREC_LOAD_VALID:        DS          1   ; 1 IF ANY DATA BYTE WAS WRITTEN
 HEARTBEAT_MODE:         DS          1   ; I T0 MODE: '1'=ON, '7'=FAST HB, 'F'=SLOW HB, $80=WIG-WAG
+MENU_MODE:              DS          1   ; I M 1=MENU ON, I M 0=MENU OFF
 ROM_CSUM32:             DS          4   ; 32-BIT CHECKSUM ACCUMULATOR (B0..B3)
 WARM_RESUME_RESTORE_PENDING:
                         DS          1   ; 1 => RESET-WARM SHOULD RESTORE HOOK SNAPSHOT
@@ -255,6 +256,7 @@ SYS_RST:
                         STZ         WARM_RESUME_RESTORE_PENDING
                         STZ         HEARTBEAT_PHASE
                         STZ         HEARTBEAT_DIV
+                        STZ         MENU_MODE
                         LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
                         STA         TERM_COLS
                         STZ         TERM_CUR_COL
@@ -1691,6 +1693,7 @@ CMD_PROCESS_IF_READY:
                         JSR         CMD_ASK_GAME_IF_PENDING
 ?CPROC_PRINT_PROMPT:
                         JSR         PRT_CRLF
+                        JSR         CMD_PRINT_MENU_PROMPT_IF_ON
                         JSR         PRT_UNDER
 ?CPROC_DONE:
                         RTS
@@ -1729,11 +1732,238 @@ CMD_NOTIFY_INPUT_OVERFLOW:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_PRE_HOOK
-; DESCRIPTION: PRE-DISPATCH COMMAND HOOK (NO-OP PLACEHOLDER)
+; DESCRIPTION: PRE-DISPATCH COMMAND HOOK
 ; INPUT: CMD_LINE
-; OUTPUT: NONE
+; OUTPUT: WHEN MENU MODE IS ON, SINGLE "M" OPENS COMMAND PANEL AND SELECTION
+;         IS MAPPED TO A NORMAL COMMAND LINE
 ; ----------------------------------------------------------------------------
+CMD_PRINT_MENU_PROMPT_IF_ON:
+                        LDA         MENU_MODE
+                        BEQ         ?CMPMO_DONE
+                        PRT_CSTRING MSG_MENU_PROMPT
+?CMPMO_DONE:
+                        RTS
+
 CMD_PRE_HOOK:
+                        LDA         MENU_MODE
+                        BEQ         ?CPH_DONE
+                        LDA         CMD_LINE
+                        CMP         #'M'
+                        BNE         ?CPH_DONE
+                        LDX         #$01
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CPH_DONE ; KEEP NORMAL "M <ARGS>"
+                        JSR         CMD_MENU_PANEL
+?CPH_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_MENU_MAP_KEY
+; DESCRIPTION: MAPS MENU KEYS TO COMMAND LITERALS IN CMD_LINE
+; INPUT: A = KEY
+; OUTPUT: C=0 MAPPED, C=1 UNKNOWN KEY
+; ----------------------------------------------------------------------------
+CMD_MENU_MAP_KEY:
+                        CMP         #'1'
+                        BNE         ?CMMK_CHK2
+                        LDA         #<CMD_MENU_KEY_1
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_1
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK2:
+                        CMP         #'2'
+                        BNE         ?CMMK_CHK3
+                        LDA         #<CMD_MENU_KEY_2
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_2
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK3:
+                        CMP         #'3'
+                        BNE         ?CMMK_CHK4
+                        LDA         #<CMD_MENU_KEY_3
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_3
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK4:
+                        CMP         #'4'
+                        BNE         ?CMMK_CHK5
+                        LDA         #<CMD_MENU_KEY_4
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_4
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK5:
+                        CMP         #'5'
+                        BNE         ?CMMK_CHK6
+                        LDA         #<CMD_MENU_KEY_5
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_5
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK6:
+                        CMP         #'6'
+                        BNE         ?CMMK_CHK7
+                        LDA         #<CMD_MENU_KEY_6
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_6
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK7:
+                        CMP         #'7'
+                        BNE         ?CMMK_CHK8
+                        LDA         #<CMD_MENU_KEY_7
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_7
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK8:
+                        CMP         #'8'
+                        BNE         ?CMMK_CHK9
+                        LDA         #<CMD_MENU_KEY_8
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_8
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHK9:
+                        CMP         #'9'
+                        BNE         ?CMMK_CHKA
+                        LDA         #<CMD_MENU_KEY_9
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_9
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKA:
+                        CMP         #'A'
+                        BNE         ?CMMK_CHKB
+                        LDA         #<CMD_MENU_KEY_A
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_A
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKB:
+                        CMP         #'B'
+                        BNE         ?CMMK_CHKC
+                        LDA         #<CMD_MENU_KEY_B
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_B
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKC:
+                        CMP         #'C'
+                        BNE         ?CMMK_CHKD
+                        LDA         #<CMD_MENU_KEY_C
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_C
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKD:
+                        CMP         #'D'
+                        BNE         ?CMMK_CHKE
+                        LDA         #<CMD_MENU_KEY_D
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_D
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKE:
+                        CMP         #'E'
+                        BNE         ?CMMK_CHKF
+                        LDA         #<CMD_MENU_KEY_E
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_E
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_CHKF:
+                        CMP         #'F'
+                        BNE         ?CMMK_UNKNOWN
+                        LDA         #<CMD_MENU_KEY_F
+                        STA         PTR_TEMP
+                        LDA         #>CMD_MENU_KEY_F
+                        STA         PTR_TEMP+1
+                        JSR         CMD_MENU_LOAD_PTR
+                        CLC
+                        RTS
+?CMMK_UNKNOWN:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_MENU_PANEL
+; DESCRIPTION: PRINTS SYSTEM/36-STYLE PANEL, READS ONE SELECTION KEY
+; INPUT: NONE
+; OUTPUT: CMD_LINE REPLACED WITH MAPPED COMMAND, OR CLEARED ON CANCEL/ERROR
+; ----------------------------------------------------------------------------
+CMD_MENU_PANEL:
+                        PRT_CSTRING MSG_MENU_PANEL
+                        PRT_CSTRING MSG_MENU_SELECT
+                        JSR         READ_BYTE_ECHO_UPPER
+                        JSR         PRT_CRLF
+                        CMP         #$0D
+                        BEQ         ?CMP_CANCEL
+                        CMP         #$0A
+                        BEQ         ?CMP_CANCEL
+                        CMP         #'Q'
+                        BEQ         ?CMP_CANCEL
+                        JSR         CMD_MENU_MAP_KEY
+                        BCC         ?CMP_DONE
+                        PRT_CSTRING MSG_MENU_BAD_KEY
+?CMP_CANCEL:
+                        STZ         CMD_LEN
+                        STZ         CMD_LINE
+                        STZ         CMD_LINE+1
+?CMP_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_MENU_LOAD_PTR
+; DESCRIPTION: COPIES NUL-TERMINATED STRING AT PTR_TEMP INTO CMD_LINE
+; OUTPUT: CMD_LINE/CMD_LEN UPDATED
+; ----------------------------------------------------------------------------
+CMD_MENU_LOAD_PTR:
+                        LDY         #$00
+?CMLP_COPY:
+                        LDA         (PTR_TEMP),Y
+                        STA         CMD_LINE,Y
+                        BEQ         ?CMLP_DONE
+                        INY
+                        CPY         #CMD_MAX_LEN
+                        BCC         ?CMLP_COPY
+                        LDA         #$00
+                        STA         CMD_LINE,Y
+?CMLP_DONE:
+                        TYA
+                        STA         CMD_LEN
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -2334,6 +2564,7 @@ CMD_DO_GAME:
 ; SUBROUTINE: CMD_DO_INFO
 ; DESCRIPTION: INFO NAMESPACE ROOT
 ; USAGE: I   OR   I A   OR   I T0 [0|1|7|F|80]   OR   I I [0|1]   OR
+;        I M [0|1]   OR
 ;        I C <RPN TOKENS>   OR
 ;        IC <RPN TOKENS>
 ; ----------------------------------------------------------------------------
@@ -2350,6 +2581,10 @@ CMD_DO_INFO:
                         BNE         ?CID_CHK_CALC
                         JMP         ?CID_IRQ_MASK
 ?CID_CHK_CALC:
+                        CMP         #'M'
+                        BNE         ?CID_CHK_C
+                        JMP         ?CID_MENU_MODE
+?CID_CHK_C:
                         CMP         #'C'
                         BNE         ?CID_USAGE
                         JMP         ?CID_CALC
@@ -2479,6 +2714,34 @@ CMD_DO_INFO:
 ?CID_IRQ_OFF:
                         SEI             ; DISABLE CPU IRQ HANDLING
                         PRT_CSTRING MSG_II_OFF
+                        RTS
+?CID_MENU_MODE:
+                        INX             ; PARSE AFTER 'M'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CID_MENU_STATUS
+                        CMP         #'1'
+                        BEQ         ?CID_MENU_ON
+                        CMP         #'0'
+                        BEQ         ?CID_MENU_OFF
+                        PRT_CSTRING MSG_IM_USAGE
+                        RTS
+?CID_MENU_STATUS:
+                        LDA         MENU_MODE
+                        BEQ         ?CID_MENU_OFF_MSG
+                        PRT_CSTRING MSG_IM_ON
+                        RTS
+?CID_MENU_OFF_MSG:
+                        PRT_CSTRING MSG_IM_OFF
+                        RTS
+?CID_MENU_ON:
+                        LDA         #$01
+                        STA         MENU_MODE
+                        PRT_CSTRING MSG_IM_ON
+                        RTS
+?CID_MENU_OFF:
+                        STZ         MENU_MODE
+                        PRT_CSTRING MSG_IM_OFF
                         RTS
 ?CID_CALC:
                         INX             ; PARSE AFTER SUBCOMMAND LETTER
@@ -8330,7 +8593,7 @@ MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  I / I A / I T0 [0|1|7|F|80] / I I [0|1] / I C EXPR "
+                        DB          "  I / I A / I T0 [0|1|7|F|80] / I I [0|1] / I M [0|1] / I C EXPR "
                         DB          "INFO / EASTER EGG / RPN CALC "
                         DB          "(16-BIT HEX TOKENS)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
@@ -8447,7 +8710,45 @@ MSG_IT_USAGE:           DB          $0D, $0A
 MSG_II_ON:              DB          $0D, $0A, "I I 1 CPU IRQ: ENABLED", 0
 MSG_II_OFF:             DB          $0D, $0A, "I I 0 CPU IRQ: DISABLED", 0
 MSG_II_USAGE:           DB          $0D, $0A, "USAGE: I I 1 (ENABLE IRQ) | I I 0 (DISABLE IRQ)", 0
-MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1|7|F|80] | I I [0|1] | I C <RPN>", 0
+MSG_IM_ON:              DB          $0D, $0A, "I M 1 MENU: ON (COMMAND PANEL)", 0
+MSG_IM_OFF:             DB          $0D, $0A, "I M 0 MENU: OFF", 0
+MSG_IM_USAGE:           DB          $0D, $0A, "USAGE: I M 1 (ON) | I M 0 (OFF)", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1|7|F|80] | I I [0|1] | I M [0|1] | I C <RPN>", 0
+MSG_MENU_PROMPT:        DB          "[MENU] TYPE M FOR COMMAND PANEL", $0D, $0A, 0
+MSG_MENU_PANEL:         DB          $0D, $0A
+                        DB          "  1  A  ASSEMBLE", $0D, $0A
+                        DB          "  2  C  COPY", $0D, $0A
+                        DB          "  3  D  DUMP / DISPLAY", $0D, $0A
+                        DB          "  4  F  FILL", $0D, $0A
+                        DB          "  5  G  GUESS GAME", $0D, $0A
+                        DB          "  6  H  HELP", $0D, $0A
+                        DB          "  7  I  INSPECT / INFO", $0D, $0A
+                        DB          "  8  L  LOAD S-RECORDS (L S)", $0D, $0A
+                        DB          "  9  M  MODIFY (INTERACTIVE / [B0..B15])", $0D, $0A
+                        DB          "  A  N  NEXT", $0D, $0A
+                        DB          "  B  R  RUN / RESUME", $0D, $0A
+                        DB          "  C  S  SEARCH", $0D, $0A
+                        DB          "  D  T  TERMINAL", $0D, $0A
+                        DB          "  E  U  UNASSEMBLE", $0D, $0A
+                        DB          "  F  Z  CLEAR RAM (CONFIRM)", $0D, $0A
+                        DB          "  Q     CANCEL", $0D, $0A, 0
+MSG_MENU_SELECT:        DB          "SELECT [1-9,A-F,Q]: ", 0
+MSG_MENU_BAD_KEY:       DB          $0D, $0A, "MENU: INVALID SELECTION", 0
+CMD_MENU_KEY_1:         DB          "A", 0
+CMD_MENU_KEY_2:         DB          "C", 0
+CMD_MENU_KEY_3:         DB          "D", 0
+CMD_MENU_KEY_4:         DB          "F", 0
+CMD_MENU_KEY_5:         DB          "G", 0
+CMD_MENU_KEY_6:         DB          "H", 0
+CMD_MENU_KEY_7:         DB          "I", 0
+CMD_MENU_KEY_8:         DB          "L S", 0
+CMD_MENU_KEY_9:         DB          "M", 0
+CMD_MENU_KEY_A:         DB          "N", 0
+CMD_MENU_KEY_B:         DB          "R", 0
+CMD_MENU_KEY_C:         DB          "S", 0
+CMD_MENU_KEY_D:         DB          "T", 0
+CMD_MENU_KEY_E:         DB          "U", 0
+CMD_MENU_KEY_F:         DB          "Z", 0
 MSG_IC_USAGE:           DB          $0D, $0A
                         DB          "USAGE: I C T0 [T1 ...]  TOKENS: HEX,+,-,*,/"
                         DB          ",&,|,^,~", 0

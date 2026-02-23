@@ -8,6 +8,8 @@ Poor, poor, poor man's 5250 data stream / terminal emulation / file transfer for
 
 - Terminal mode (`term`) with local quit char (default `0x1D`, Ctrl-])
 - Raw binary load (`lb-send`) for monitor command `L B ADDR LEN`
+- S-record load from host file (`ls-send`) for monitor `L S`
+- S-record load+go from host file (`lgs-send`) for monitor `L G S`
 - IBM-ish data-stream / terminal emulation / file-transfer direction (experimental)
 
 ## Build
@@ -52,4 +54,12 @@ tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 ```bash
 tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
 tools/bso2com/bso2com lb-send payload.bin --addr 1000
+tools/bso2com/bso2com ls-send game.s28
+tools/bso2com/bso2com lgs-send game.s28
 ```
+
+Notes:
+
+- `ls-send`/`lgs-send` wait for monitor text `L S READY`, stream the `.s28` file,
+  then wait for `L S LOAD COMPLETE` by default.
+- Use `--no-wait-done` if you do not want to wait for completion text.

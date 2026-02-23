@@ -116,6 +116,8 @@ Active milestones and TODOs are maintained in `STORIES.md`.
 ```bash
 make -C tools/bso2com
 tools/bso2com/bso2com --port /dev/ttyUSB0 --baud 115200 term
+tools/bso2com/bso2com ls-send game.s28
+tools/bso2com/bso2com lgs-send game.s28
 ```
 
 Details: `tools/bso2com/README.md`
