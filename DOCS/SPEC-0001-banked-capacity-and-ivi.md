@@ -137,6 +137,7 @@ Adopt the hybrid path:
 
 ## IVI Command Family (Draft)
 
+- Naming provenance: `IVI` / `IVS` / `IVC` / `IVR` / `IVX` were born from an AI suggestion phrase: **Inspect Vector Indirection**.
 - `IVI`: inspect live/staged/previous vector state.
 - `IVS <slot> <addr> [name]`: stage target.
 - `IVC <slot|ALL>`: commit staged targets.

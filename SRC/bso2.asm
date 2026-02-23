@@ -10,7 +10,7 @@
 ; ****************************************************************************
 ; * *
 ; * BSO2 MONITOR FOR W65C02EDU                                               *
-; * VERSION: R0M0V1I00                                                       *
+; * VERSION: R0M0V2I01                                                       *
 ; * *
 ; ****************************************************************************
 
@@ -47,8 +47,8 @@ BUF_TMP:                DS          1   ; ACTIVE BUFFER TEMP BYTE
 BUF_IDX:                DS          1   ; ACTIVE BUFFER INDEX TEMP
 CMD_DISPATCH_CH:        DS          1   ; COMMAND LETTER FOR TABLE DISPATCH
 CMD_POST_ACTION:        DS          1
-                                        ; POST-DISPATCH ACTION (0=NONE,1=JMP
-                                        ; MONITOR)
+                                        ; POST-DISPATCH ACTION (0=NONE,1=WARM,
+                                        ; 2=MONITOR)
 SYS_FLAGS:              DS          1   ; PACKED SYSTEM FLAGS (SEE BITS BELOW)
 CMD_LEN:                DS          1   ; CURRENT COMMAND LENGTH
 CMD_READY:              DS          1   ; 0=NOT READY, 1=READY
@@ -87,14 +87,13 @@ STEP_ACTIVE:            DS          1   ; 1 IF TEMP BRK IS CURRENTLY ARMED
 GAME_TARGET:            DS          1   ; TARGET VALUE FOR G NUMBER GAME (1..10)
 GAME_TRIES:             DS          1   ; REMAINING TRIES FOR G NUMBER GAME
 GAME_GUESS:             DS          1   ; LAST PARSED GUESS FOR G NUMBER GAME
-RNG_STATE:              DS          1   ; LIVE RNG STIR STATE
                         DS          ZP_GAME_ASK_ADDR-* ; PIN ABI BYTE
 GAME_ASK_PENDING:       DS          1   ; FIXED @ $0078 (EXTERNAL/USER-FACING)
 
                         DS          ZP_BRK_FLAG_ADDR-* ; PIN DEBUG CONTEXT FLAG
 BRK_FLAG                DS          1
                         DS          ZP_TERM_COLS_ADDR-* ; PIN TERMINAL WIDTH BYTE
-TERM_COLS:              DS          1   ; 40/80/132 COLUMN PREFERENCE
+TERM_COLS:              DS          1   ; 20/40/80/132 COLUMN PREFERENCE
                         DS          ZP_TERM_TIMEOUT_ADDR-*
                                         ; PIN TERM WIDTH PROMPT TIMEOUT BYTE
 TERM_WIDTH_TIMEOUT:     DS          1   ; 0=WAIT FOREVER, 1..255=SECONDS
@@ -103,7 +102,9 @@ HEARTBEAT_PHASE:        DS          1   ; 00/FF OVERLAY TO SHOW T0 HEARTBEAT
                         DS          ZP_HEARTBEAT_DIV_ADDR-* ; PIN HEARTBEAT DIV
 HEARTBEAT_DIV:          DS          1   ; SOFTWARE DIVIDER FOR VISIBLE BLINK
                         DS          ZP_TERM_WAIT_LED_ADDR-*
-TERM_WAIT_LED:          DS          1   ; LED BLINK PATTERN SCRATCH
+TERM_CUR_COL:           DS          1   ; CURRENT OUTPUT COLUMN (0..TERM_COLS-1)
+TERM_WAIT_LED           EQU         TERM_CUR_COL
+                                        ; LEGACY WIDTH-PROMPT SCRATCH ALIAS
                         DS          ZP_TERM_WAIT_SECS_ADDR-*
 TERM_WAIT_SECS:         DS          1   ; WIDTH-PROMPT SECONDS SCRATCH
 
@@ -127,6 +128,10 @@ SYSF_RESET_FLAG_M       EQU         %00000100 ; 1 IF RESET COOKIE PATH WAS TAKEN
 SYSF_GO_FLAG_M          EQU         %00001000 ; 1 WHILE X-LAUNCHED CODE IS RUNNING
 SYSF_H_AUTO_EN_M        EQU         %00010000 ; 1 IF STARTUP AUTO-HELP IS ENABLED
 SYSF_H_AUTO_PEND_M      EQU         %00100000 ; 1 IF STARTUP AUTO-HELP IS PENDING
+SYSF_INPUT_OVF_M        EQU         %01000000 ; 1 IF INPUT OVERFLOW OCCURRED
+SYSF_DROP_EOL_M         EQU         %10000000 ; 1 WHILE DROPPING INPUT TO CR/LF
+POST_ACTION_NONE        EQU         $00
+POST_ACTION_MONITOR     EQU         $01
 
 MOD_NEXT                EQU         PAGE_NUMBER ; LAST/NEXT MODIFY ADDRESS
 MOD_VALID               EQU         DBG_CONTINUE ; 1 IF MOD_NEXT IS VALID
@@ -166,6 +171,12 @@ RBUF_DATA:              DS          RBUF_SIZE ; INPUT RING BUFFER STORAGE
 CMD_LINE:               DS          CMD_MAX_LEN+1 ; PARSED COMMAND + NULL
 CMD_LAST_LINE:          DS          CMD_MAX_LEN+1 ; LAST COMMAND + NULL
 RESET_COOKIE:           DS          4   ; RESET-PERSISTENT COOKIE
+RNG_STATE:              DS          1   ; LIVE RNG STIR STATE
+REC_CMD_ACTIVE:         DS          1   ; 1 IF SAFE CMD WAS INTERRUPTED
+REC_CMD_ID:             DS          1   ; 'D'/'U'/'S'/'F'/'C'
+REC_NEXT_ADDR:          DS          2   ; RESTART HINT CURSOR
+REC_RUN_VALID:          DS          1   ; 1 IF LAST R START ENTRY IS VALID
+REC_RUN_ADDR:           DS          2   ; LAST R START ENTRY ADDRESS
 UNASM_NEXT:             DS          2   ; NEXT START ADDR FOR "U" (UDATA)
 UNASM_SPAN:             DS          2   ; BYTE COUNT FOR REPEATED "U" (UDATA)
 UNASM_VALID:            DS          1   ; 1 IF UNASM_NEXT/UNASM_SPAN VALID
@@ -181,6 +192,14 @@ RPN_STACK:              DS          RPN_STACK_DEPTH*2 ; I C VALUE STACK (LO/HI)
 DBG_TAG_BUF:            DS          6   ; MUTABLE TAG BUFFER "[   ]",0
 SREC_FIRST_ADDR:        DS          2   ; FIRST S1/S2/S3 ADDRESS FOR LGS FALLBACK
 SREC_FIRST_VALID:       DS          1   ; 1 IF SREC_FIRST_ADDR IS VALID
+HEARTBEAT_MODE:         DS          1   ; I T0 MODE: '1'=ON, '7'=FAST HB, 'F'=SLOW HB, $80=WIG-WAG
+ROM_CSUM32:             DS          4   ; 32-BIT CHECKSUM ACCUMULATOR (B0..B3)
+WARM_RESUME_RESTORE_PENDING:
+                        DS          1   ; 1 => RESET-WARM SHOULD RESTORE HOOK SNAPSHOT
+NMI_HOOK_SAVED:         DS          3   ; SAVED PRE-RESET NMI_HOOK BYTES
+IRQ_HOOK_SAVED:         DS          3   ; SAVED PRE-RESET IRQ_HOOK BYTES
+BRK_HOOK_SAVED:         DS          3   ; SAVED PRE-RESET BRK_HOOK BYTES
+HW_HOOK_SAVED:          DS          3   ; SAVED PRE-RESET HW_HOOK BYTES
 
 
                         XREF PRT_C_STRING
@@ -199,6 +218,7 @@ SREC_FIRST_VALID:       DS          1   ; 1 IF SREC_FIRST_ADDR IS VALID
 
                         CODE
 
+CODE_REGION_START:
 WDC_SIG:                DB          'WDC', $00 ; ROM SIGNATURE
 
 WDC_RST:                JMP         INIT_RST ; SYSTEM COLD START
@@ -219,27 +239,28 @@ SYS_RST:
                         JSR         INIT_SERIAL
                                         ; SERIAL READY FOR BOOT MESSAGES
                         JSR         INIT_LED ; LED PORT READY FOR WRITE_BYTE
-                        JSR         VIA_T1_STOP ; TIMER IRQS OFF BY DEFAULT
-                        STZ         BRK_FLAG ; NO RESUME CONTEXT AFTER RESET
+                        LDA         #'1' ; DEFAULT I T0 1 (NORMAL ON)
+                        STA         HEARTBEAT_MODE
+                        JSR         VIA_T1_START_FREE
+                                        ; DEFAULT: T0 HEARTBEAT ON (~122.07HZ)
                         STZ         SYS_FLAGS ; RESET PACKED SYSTEM FLAGS
                         STZ         CMD_ESC_STATE
                         STZ         CMD_LAST_LEN
                         STZ         STEP_ACTIVE
+                        STZ         WARM_RESUME_RESTORE_PENDING
                         STZ         HEARTBEAT_PHASE
                         STZ         HEARTBEAT_DIV
-                        LDA         TERM_COLS ; SAVE PRIOR WIDTH ACROSS RESET
-                        STA         PSR_TEMP
                         LDA         #TERM_COLS_80 ; DEFAULT TERMINAL WIDTH
                         STA         TERM_COLS
+                        STZ         TERM_CUR_COL
                         LDA         #TERM_WIDTH_TIMEOUT_DFLT
                         STA         TERM_WIDTH_TIMEOUT
-                        LDA         #$01 ; ASK ONCE AFTER RESET
-                        STA         GAME_ASK_PENDING
                         LDA         #SYSF_H_AUTO_EN_M+SYSF_H_AUTO_PEND_M
                         TSB         SYS_FLAGS
                         LDA         #SYSF_RESET_FLAG_M
                         TRB         SYS_FLAGS
                                         ; 0 = POWER-ON PATH, 1 = RESET PATH
+                        CLI             ; DEFAULT: CPU IRQ ENABLED (I I 1)
 
         ; --- CHECK RESET COOKIE ("WDC",0) ---
                         LDA         RESET_COOKIE
@@ -255,6 +276,10 @@ SYS_RST:
                         BNE         ?TO_POWER_ON_CLR
                         BRA         ?COOKIE_OK
 ?TO_POWER_ON_CLR:
+                        STZ         BRK_FLAG ; DROP ANY STALE RESUME CONTEXT
+                        JSR         RECOVERY_CLEAR_PERSIST
+                        LDA         #$01 ; POR DEFAULT: ENABLE GAME ASK PROMPT
+                        STA         GAME_ASK_PENDING ; RESET PATH PRESERVES $0078
                         JMP         POWER_ON_CLR
 ?COOKIE_OK:
 
@@ -303,15 +328,15 @@ SYS_RST:
                         JMP         ?BOOT_GO_WARM_NO_VECT
 
 ?BOOT_GO_MEMCLR:
-                        JSR         PROMPT_TERM_WIDTH
                         JMP         MEMCLR
 ?BOOT_GO_WARM_NO_VECT:
-                        JSR         TERM_RESTORE_SAVED
-                        JSR         PROMPT_TERM_WIDTH
-                        JMP         WARM_NO_VECT
+                        STZ         BRK_FLAG ; FORCE CLEAN WARM ENTRY
+                        STZ         STEP_ACTIVE ; DROP ANY PENDING STEP BRK
+                        STZ         WARM_RESUME_RESTORE_PENDING
+                        JMP         WARM_NO_VECT_HINTS
 ?BOOT_GO_MONITOR:
-                        JSR         TERM_RESTORE_SAVED
-                        JSR         PROMPT_TERM_WIDTH
+                        STZ         REC_CMD_ACTIVE
+                        PRT_CSTRING MSG_MONITORSTART
                         JMP         MONITOR_CLEAN
 
 POWER_ON_CLR:
@@ -324,22 +349,29 @@ POWER_ON_CLR:
                         JSR         KEY_IS_M
                         BNE         ?POW_ASK_BOOT
                         JSR         RESET_COOKIE_SET
-                        JSR         PROMPT_TERM_WIDTH
                         JMP         MONITOR_CLEAN
 ?POW_GO_MEMCLR:
-                        JSR         PROMPT_TERM_WIDTH
                         JMP         MEMCLR
 
 MEMCLR:                 PRT_CSTRING MSG_RAM_CLEARED
                         JSR         MEMCLR_CORE
+                        ; Confirmed clear-memory always returns via cold-start
+                        ; monitor entry (banner + vectors), even on reset path.
                         LDA         #SYSF_RESET_FLAG_M
-                        BIT         SYS_FLAGS
-                        BNE         WARM_NO_VECT
-WARM:                   PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON
+                        TRB         SYS_FLAGS
+                        JMP         WARM
+WARM:                   JSR         PRINT_BOOT_BANNER ; PRINT SIGN-ON + C/D SIZES
                         JSR         SHOW_VECTORS ; SHOW INTERRUPT CHAINS
                         BRA         MONITOR
-WARM_NO_VECT:           PRT_CSTRING BSO2_INIT ; PRINT SIGN-ON (NO VECTOR DUMP)
+WARM_NO_VECT:
+                        JSR         PRINT_BOOT_BANNER ; PRINT SIGN-ON + C/D SIZES
                         PRT_CSTRING MSG_WARMSTART
+                        JMP         MONITOR_CLEAN
+WARM_NO_VECT_HINTS:
+                        JSR         PRINT_BOOT_BANNER ; PRINT SIGN-ON + C/D SIZES
+                        PRT_CSTRING MSG_WARMSTART
+                        JSR         RECOVERY_PRINT_WARM_HINTS
+                        JMP         MONITOR_CLEAN
 
 ; ----------------------------------------------------------------------------
 ; ENTRY: MONITOR_CLEAN
@@ -367,6 +399,7 @@ MONITOR:                JSR         PRT_CRLF ; NEW LINE
                         JSR         CMD_PARSE_RING ; BUILD COMMANDS FROM RING
                         JSR         CMD_PROCESS_IF_READY
                                         ; EXECUTE COMPLETED COMMAND
+                        JSR         CMD_NOTIFY_INPUT_OVERFLOW
                         BRA         ?MONITOR_LOOP
 
 ; ----------------------------------------------------------------------------
@@ -443,6 +476,49 @@ RESET_COOKIE_SET:
                         RTS
 
 ; ----------------------------------------------------------------------------
+; SUBROUTINE: RECOVERY_CLEAR_PERSIST
+; DESCRIPTION: CLEARS WARM-RECOVERY HINT STATE (POWER-ON / INVALID COOKIE)
+; ----------------------------------------------------------------------------
+RECOVERY_CLEAR_PERSIST:
+                        STZ         REC_CMD_ACTIVE
+                        STZ         REC_CMD_ID
+                        STZ         REC_NEXT_ADDR
+                        STZ         REC_NEXT_ADDR+1
+                        STZ         REC_RUN_VALID
+                        STZ         REC_RUN_ADDR
+                        STZ         REC_RUN_ADDR+1
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: RECOVERY_PRINT_WARM_HINTS
+; DESCRIPTION: PRINTS TERSE RESTART HINTS ON RESET-WARM ENTRY
+; ----------------------------------------------------------------------------
+RECOVERY_PRINT_WARM_HINTS:
+                        LDA         REC_CMD_ACTIVE
+                        BEQ         ?RPWH_RUN
+                        JSR         PRT_CRLF
+                        PRT_CSTRING MSG_REC_HINT_CMD
+                        LDA         REC_CMD_ID
+                        JSR         WRITE_BYTE
+                        PRT_CSTRING MSG_REC_HINT_NEXT
+                        LDA         REC_NEXT_ADDR+1
+                        JSR         PRT_HEX
+                        LDA         REC_NEXT_ADDR
+                        JSR         PRT_HEX
+                        STZ         REC_CMD_ACTIVE
+?RPWH_RUN:
+                        LDA         REC_RUN_VALID
+                        BEQ         ?RPWH_DONE
+                        JSR         PRT_CRLF
+                        PRT_CSTRING MSG_REC_HINT_RUN
+                        LDA         REC_RUN_ADDR+1
+                        JSR         PRT_HEX
+                        LDA         REC_RUN_ADDR
+                        JSR         PRT_HEX
+?RPWH_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
 ; SUBROUTINE: MEM_CLEAR
 ; DESCRIPTION: CLEARS RAM FROM $7E00 DOWN TO $0200
 ;              SKIPS STACK ($01xx) AND ZP ($00xx) FOR SAFETY
@@ -451,6 +527,305 @@ RESET_COOKIE_SET:
 ; ----------------------------------------------------------------------------
 MEM_CLEAR:
                         JMP         MEM_CLEAR_RAM_LOOP
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRINT_BOOT_BANNER
+; DESCRIPTION: PRINTS STATIC BANNER + SIZE LINE + ROM CHECKSUM LINE
+; ----------------------------------------------------------------------------
+PRINT_BOOT_BANNER:
+                        PUSH        A, X, Y
+                        PRT_CSTRING BSO2_INIT
+                        JSR         PRINT_BANNER_SIZE_LINE
+                        JSR         PRINT_BANNER_CSUM_LINE
+                        PULL        Y, X, A
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRINT_BANNER_SIZE_LINE
+; DESCRIPTION: PRINTS "****   <CODE>/<DATA>   ****" WITH COMPUTED VALUES
+; ----------------------------------------------------------------------------
+PRINT_BANNER_SIZE_LINE:
+                        ; CODE SIZE = KDATA_REGION_START - CODE_REGION_START
+                        LDA         #<KDATA_REGION_START
+                        SEC
+                        SBC         #<CODE_REGION_START
+                        STA         CMD_PARSE_VAL
+                        LDA         #>KDATA_REGION_START
+                        SBC         #>CODE_REGION_START
+                        STA         CMD_PARSE_VAL+1
+
+                        ; DATA SIZE = KDATA_REGION_END - KDATA_REGION_START
+                        LDA         #<KDATA_REGION_END
+                        SEC
+                        SBC         #<KDATA_REGION_START
+                        STA         PTR_TEMP
+                        LDA         #>KDATA_REGION_END
+                        SBC         #>KDATA_REGION_START
+                        STA         PTR_TEMP+1
+
+                        ; CONTENT LEN = DIGITS(CODE) + 1 ('/') + DIGITS(DATA)
+                        LDA         CMD_PARSE_VAL+1
+                        LDX         CMD_PARSE_VAL
+                        JSR         DEC16_DIGITS_AX
+                        STA         BUF_TMP
+                        LDA         PTR_TEMP+1
+                        LDX         PTR_TEMP
+                        JSR         DEC16_DIGITS_AX
+                        STA         BUF_IDX
+                        LDA         BUF_TMP
+                        CLC
+                        ADC         BUF_IDX
+                        ADC         #$01 ; slash
+                        STA         MOD_COUNT
+
+                        ; CENTER IN 25-CHAR INNER FIELD BETWEEN "**** " + " ****"
+                        LDA         #$19 ; 25
+                        SEC
+                        SBC         MOD_COUNT ; TOTAL PAD
+                        LSR         A ; LEFT PAD = FLOOR(TOTAL/2), C=ODD?
+                        STA         CMD_PARSE_NIB ; LEFT PAD
+                        STA         BUF_IDX ; RIGHT PAD BASE
+                        BCC         ?PBSL_PAD_READY
+                        INC         BUF_IDX ; RIGHT GETS EXTRA WHEN ODD
+?PBSL_PAD_READY:
+                        PRT_CSTRING MSG_BANNER_SIZE_PREFIX
+                        LDY         CMD_PARSE_NIB
+                        JSR         PRT_SPACES_Y
+                        LDA         CMD_PARSE_VAL+1
+                        LDX         CMD_PARSE_VAL
+                        JSR         PRT_DEC16_AX
+                        LDA         #'/'
+                        JSR         WRITE_BYTE
+                        LDA         PTR_TEMP+1
+                        LDX         PTR_TEMP
+                        JSR         PRT_DEC16_AX
+                        LDY         BUF_IDX
+                        JSR         PRT_SPACES_Y
+                        PRT_CSTRING MSG_BANNER_SIZE_SUFFIX
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRINT_BANNER_CSUM_LINE
+; DESCRIPTION: PRINTS CENTERED 32-BIT CHECKSUM IN 25-CHAR INNER FIELD
+; ----------------------------------------------------------------------------
+PRINT_BANNER_CSUM_LINE:
+                        ; CHECKSUM HEX LEN = 8, INNER WIDTH = 25 => L=8 R=9
+                        PRT_CSTRING MSG_BANNER_CSUM_PREFIX
+                        LDY         #$08
+                        JSR         PRT_SPACES_Y
+                        JSR         CHKSUM32_ROM_8000_EFFF
+                        JSR         PRT_HEX_DWORD_CSUM32
+                        LDY         #$09
+                        JSR         PRT_SPACES_Y
+                        PRT_CSTRING MSG_BANNER_CSUM_SUFFIX
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_DEC16_AX
+; DESCRIPTION: PRINTS UNSIGNED 16-BIT DECIMAL VALUE (A=HI, X=LO)
+; CLOBBERS: A, X, Y, CMD_PARSE_VAL, CMD_PARSE_NIB, MOD_COUNT
+; ----------------------------------------------------------------------------
+PRT_DEC16_AX:
+                        STA         CMD_PARSE_VAL+1
+                        STX         CMD_PARSE_VAL
+                        STZ         CMD_PARSE_NIB ; 0=NO DIGIT PRINTED YET
+                        LDY         #$00 ; DIVISOR TABLE OFFSET
+?PD16_NEXT_DIV:
+                        STZ         MOD_COUNT ; DIGIT COUNTER 0..9
+?PD16_SUB_LOOP:
+                        LDA         CMD_PARSE_VAL+1
+                        CMP         DEC_DIV_TAB,Y ; COMPARE HIGH BYTE
+                        BCC         ?PD16_DONE_SUB
+                        BNE         ?PD16_SUBTRACT
+                        LDA         CMD_PARSE_VAL
+                        CMP         DEC_DIV_TAB+1,Y ; COMPARE LOW BYTE
+                        BCC         ?PD16_DONE_SUB
+?PD16_SUBTRACT:
+                        LDA         CMD_PARSE_VAL
+                        SEC
+                        SBC         DEC_DIV_TAB+1,Y ; SUBTRACT LOW BYTE
+                        STA         CMD_PARSE_VAL
+                        LDA         CMD_PARSE_VAL+1
+                        SBC         DEC_DIV_TAB,Y ; SUBTRACT HIGH BYTE
+                        STA         CMD_PARSE_VAL+1
+                        INC         MOD_COUNT
+                        BRA         ?PD16_SUB_LOOP
+?PD16_DONE_SUB:
+                        LDA         MOD_COUNT
+                        BNE         ?PD16_PRINT_DIGIT
+                        LDA         CMD_PARSE_NIB
+                        BNE         ?PD16_PRINT_ZERO
+                        CPY         #$08 ; FORCE PRINT ON ONES PLACE
+                        BNE         ?PD16_ADVANCE
+?PD16_PRINT_ZERO:
+                        LDA         #'0'
+                        JSR         WRITE_BYTE
+                        LDA         #$01
+                        STA         CMD_PARSE_NIB
+                        BRA         ?PD16_ADVANCE
+?PD16_PRINT_DIGIT:
+                        CLC
+                        ADC         #'0'
+                        JSR         WRITE_BYTE
+                        LDA         #$01
+                        STA         CMD_PARSE_NIB
+?PD16_ADVANCE:
+                        INY
+                        INY
+                        CPY         #$0A
+                        BCC         ?PD16_NEXT_DIV
+                        RTS
+
+DEC_DIV_TAB:            DB          $27, $10 ; 10000
+                        DB          $03, $E8 ; 1000
+                        DB          $00, $64 ; 100
+                        DB          $00, $0A ; 10
+                        DB          $00, $01 ; 1
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: DEC16_DIGITS_AX
+; DESCRIPTION: RETURNS DECIMAL DIGIT COUNT FOR UNSIGNED 16-BIT VALUE
+; INPUT: A=HI, X=LO
+; OUTPUT: A=1..5
+; ----------------------------------------------------------------------------
+DEC16_DIGITS_AX:
+                        CMP         #$27 ; 10000 HI BYTE
+                        BCC         ?DDAX_CHK_1000
+                        BNE         ?DDAX_5
+                        CPX         #$10 ; 10000 LO BYTE
+                        BCS         ?DDAX_5
+?DDAX_CHK_1000:
+                        CMP         #$03 ; 1000 HI BYTE
+                        BCC         ?DDAX_CHK_100
+                        BNE         ?DDAX_4
+                        CPX         #$E8 ; 1000 LO BYTE
+                        BCS         ?DDAX_4
+?DDAX_CHK_100:
+                        CMP         #$00
+                        BNE         ?DDAX_3 ; ANY HI>0 => >=256
+                        CPX         #$64 ; 100
+                        BCS         ?DDAX_3
+                        CPX         #$0A ; 10
+                        BCS         ?DDAX_2
+                        LDA         #$01
+                        RTS
+?DDAX_2:
+                        LDA         #$02
+                        RTS
+?DDAX_3:
+                        LDA         #$03
+                        RTS
+?DDAX_4:
+                        LDA         #$04
+                        RTS
+?DDAX_5:
+                        LDA         #$05
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_SPACES_Y
+; DESCRIPTION: PRINTS Y SPACES
+; ----------------------------------------------------------------------------
+PRT_SPACES_Y:
+                        CPY         #$00
+                        BEQ         ?PSY_DONE
+?PSY_LOOP:
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        DEY
+                        BNE         ?PSY_LOOP
+?PSY_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CHKSUM32_ROM_8000_EFFF
+; DESCRIPTION: SUMS BYTES IN $8000..$EFFF (INCLUSIVE), MODULO 2^32
+; OUTPUT: ROM_CSUM32[0..3] HOLDS LOW..HIGH BYTES OF CHECKSUM
+; CLOBBERS: A, X, Y, PTR_LEG
+; ----------------------------------------------------------------------------
+CHKSUM32_ROM_8000_EFFF:
+                        PHA
+                        PHX
+                        PHY
+                        JSR         CHKSUM32_CLEAR
+                        LDA         #$00
+                        STA         PTR_LEG ; PTR LOW
+                        LDA         #$80
+                        STA         PTR_LEG+1 ; PTR HIGH => $8000
+                        LDY         #$00
+?CR8E_LOOP:
+                        LDA         (PTR_LEG),Y
+                        JSR         CHKSUM32_ADD_A
+                        JSR         CHKSUM_PTR_INC
+?CR8E_CHK_END:
+                        LDA         PTR_LEG+1
+                        CMP         #$F0 ; STOP AT $F000 (END+1)
+                        BNE         ?CR8E_LOOP
+                        LDA         PTR_LEG
+                        BNE         ?CR8E_LOOP
+                        PLY
+                        PLX
+                        PLA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CHKSUM32_CLEAR
+; DESCRIPTION: CLEARS ROM_CSUM32[0..3]
+; ----------------------------------------------------------------------------
+CHKSUM32_CLEAR:
+                        STZ         ROM_CSUM32
+                        STZ         ROM_CSUM32+1
+                        STZ         ROM_CSUM32+2
+                        STZ         ROM_CSUM32+3
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CHKSUM32_ADD_A
+; DESCRIPTION: ADDS 8-BIT A INTO 32-BIT ROM_CSUM32 (LOW->HIGH CARRY CHAIN)
+; INPUT: A = BYTE TO ADD
+; ----------------------------------------------------------------------------
+CHKSUM32_ADD_A:
+                        CLC
+                        ADC         ROM_CSUM32
+                        STA         ROM_CSUM32
+                        LDA         ROM_CSUM32+1
+                        ADC         #$00
+                        STA         ROM_CSUM32+1
+                        LDA         ROM_CSUM32+2
+                        ADC         #$00
+                        STA         ROM_CSUM32+2
+                        LDA         ROM_CSUM32+3
+                        ADC         #$00
+                        STA         ROM_CSUM32+3
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CHKSUM_PTR_INC
+; DESCRIPTION: INCREMENTS PTR_LEG 16-BIT POINTER
+; ----------------------------------------------------------------------------
+CHKSUM_PTR_INC:
+                        INC         PTR_LEG
+                        BNE         ?CPI_DONE
+                        INC         PTR_LEG+1
+?CPI_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: PRT_HEX_DWORD_CSUM32
+; DESCRIPTION: PRINTS ROM_CSUM32 AS 8 HEX DIGITS (HIGH BYTE FIRST)
+; ----------------------------------------------------------------------------
+PRT_HEX_DWORD_CSUM32:
+                        PHA
+                        LDA         ROM_CSUM32+3
+                        JSR         PRT_HEX
+                        LDA         ROM_CSUM32+2
+                        JSR         PRT_HEX
+                        LDA         ROM_CSUM32+1
+                        JSR         PRT_HEX
+                        LDA         ROM_CSUM32
+                        JSR         PRT_HEX
+                        PLA
+                        RTS
 
 ; ----------------------------------------------------------------------------
 ; ----------------------------------------------------------------------------
@@ -502,6 +877,26 @@ READ_BYTE_ECHO_UPPER:
                         PHA
                         JSR         WRITE_BYTE
                         PLA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: BOOT_ERASE_INVALID_KEY
+; DESCRIPTION: ERASES ONE ECHOED INVALID PRINTABLE KEY (BS,SP,BS)
+; INPUT: A = LAST KEY (UPPERCASED)
+; OUTPUT: NONE
+; ----------------------------------------------------------------------------
+BOOT_ERASE_INVALID_KEY:
+                        CMP         #$20
+                        BCC         ?BEIK_DONE ; CONTROL CHARS: NOTHING TO ERASE
+                        CMP         #$7F
+                        BCS         ?BEIK_DONE ; DEL/NON-ASCII: IGNORE
+                        LDA         #$08
+                        JSR         WRITE_BYTE
+                        LDA         #' '
+                        JSR         WRITE_BYTE
+                        LDA         #$08
+                        JSR         WRITE_BYTE
+?BEIK_DONE:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -603,6 +998,7 @@ BOOT_WAIT_CWM_KEY:
                         BEQ         ?BWCK_RST_DONE
                         JSR         KEY_IS_M
                         BEQ         ?BWCK_RST_DONE
+                        JSR         BOOT_ERASE_INVALID_KEY
                         BRA         ?BWCK_RST_WAIT_1S
 ?BWCK_RST_DONE:
                         RTS
@@ -645,6 +1041,7 @@ BOOT_WAIT_CM_KEY:
                         BEQ         ?BWCM_DONE
                         JSR         KEY_IS_M
                         BEQ         ?BWCM_DONE
+                        JSR         BOOT_ERASE_INVALID_KEY
                         BRA         ?BWCM_WAIT_1S
 ?BWCM_DONE:
                         RTS
@@ -653,12 +1050,14 @@ BOOT_WAIT_CM_KEY:
 ; SUBROUTINE: PROMPT_TERM_WIDTH
 ; DESCRIPTION: PROMPTS FOR TERMINAL WIDTH USING SINGLE-KEY SELECTION
 ; INPUT: TERM_WIDTH_TIMEOUT (0=WAIT FOREVER, 1..255=SECONDS)
-; OUTPUT: TERM_COLS = 40/80/132 (DEFAULT REMAINS 80 ON OTHER INPUT)
+; OUTPUT: TERM_COLS = 20/40/80/132 (DEFAULT REMAINS 80 ON OTHER INPUT)
 ; ----------------------------------------------------------------------------
 PROMPT_TERM_WIDTH:
                         PRT_CSTRING MSG_TERM_WIDTH_PROMPT
                         JSR         TERM_WAIT_WIDTH_KEY
                         BCS         ?PTW_DONE ; TIMEOUT: KEEP CURRENT WIDTH
+                        CMP         #'2'
+                        BEQ         ?PTW_SET_20
                         CMP         #'4'
                         BEQ         ?PTW_SET_40
                         CMP         #'8'
@@ -669,6 +1068,11 @@ PROMPT_TERM_WIDTH:
                         RTS
 ?PTW_SET_40:
                         LDA         #TERM_COLS_40
+                        STA         TERM_COLS
+                        JSR         TERM_FLUSH_LINE
+                        RTS
+?PTW_SET_20:
+                        LDA         #TERM_COLS_20
                         STA         TERM_COLS
                         JSR         TERM_FLUSH_LINE
                         RTS
@@ -791,12 +1195,14 @@ TERM_FLUSH_LINE:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: TERM_RESTORE_SAVED
-; DESCRIPTION: RESTORES SAVED TERM WIDTH ONLY IF IT MATCHES 40/80/132
+; DESCRIPTION: RESTORES SAVED TERM WIDTH ONLY IF IT MATCHES 20/40/80/132
 ; INPUT: PSR_TEMP = SAVED WIDTH CANDIDATE
 ; OUTPUT: TERM_COLS UPDATED WHEN CANDIDATE IS VALID
 ; ----------------------------------------------------------------------------
 TERM_RESTORE_SAVED:
                         LDA         PSR_TEMP
+                        CMP         #TERM_COLS_20
+                        BEQ         ?TRS_SET
                         CMP         #TERM_COLS_40
                         BEQ         ?TRS_SET
                         CMP         #TERM_COLS_80
@@ -978,7 +1384,30 @@ INPUT_POLL_RING:
                         ADC         #$17
                         STA         RNG_STATE
                         PLA
-                        JSR         RBUF_PUT_A ; DROP BYTE IF BUFFER FULL
+                        PHA
+                        LDA         #SYSF_DROP_EOL_M
+                        BIT         SYS_FLAGS
+                        BEQ         ?IPOLL_QUEUE
+                        PLA
+                        CMP         #$0D
+                        BEQ         ?IPOLL_DROP_EOL
+                        CMP         #$0A
+                        BEQ         ?IPOLL_DROP_EOL
+                        BRA         ?IPOLL_LOOP
+?IPOLL_DROP_EOL:
+                        LDA         #SYSF_DROP_EOL_M
+                        TRB         SYS_FLAGS
+                        BRA         ?IPOLL_LOOP
+?IPOLL_QUEUE:
+                        PLA
+                        JSR         RBUF_PUT_A ; C=1 IF BUFFER FULL
+                        BCC         ?IPOLL_LOOP
+                        LDA         #SYSF_INPUT_OVF_M+SYSF_DROP_EOL_M
+                        TSB         SYS_FLAGS
+                        STZ         CMD_LEN
+                        STZ         CMD_READY
+                        STZ         CMD_ESC_STATE
+                        JSR         RBUF_INIT ; DISCARD PARTIAL/OVERFLOWED LINE
                         BRA         ?IPOLL_LOOP
 ?IPOLL_DONE:
                         RTS
@@ -993,7 +1422,7 @@ CMD_PARSER_INIT:
                         STZ         CMD_ESC_STATE
                         STZ         CMD_POST_ACTION
                         STZ         MOD_COUNT ; RESET CR/LF COALESCER SCRATCH
-                        LDA         #SYSF_FORCE_MODE_M
+                        LDA         #SYSF_FORCE_MODE_M+SYSF_INPUT_OVF_M+SYSF_DROP_EOL_M
                         TRB         SYS_FLAGS
                         LDA         #SYSF_GO_FLAG_M
                         TRB         SYS_FLAGS
@@ -1188,8 +1617,8 @@ CMD_SAVE_LAST:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_PROCESS_IF_READY
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
-; COMMANDS: Z (CLEAR RAM), T (CLEAR SCREEN), C (COPY), W (WARM), M (MODIFY), D (DUMP), U
-; (DISASSEMBLE), A (ASSEMBLE), X (EXECUTE), G (NUMBER GAME), R (RESUME),
+; COMMANDS: Z (CLEAR RAM), T (TERMINAL), C (COPY), M (MODIFY), D (DUMP), U
+; (DISASSEMBLE), A (ASSEMBLE), G (NUMBER GAME), R (RUN/RESUME),
 ; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), I C (RPN),
 ; Q (WAIT), V (VECTORS), H/? (HELP)
 ; SEARCH TODAY:
@@ -1263,16 +1692,34 @@ CMD_PROCESS_IF_READY:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_ASK_GAME_IF_PENDING
-; DESCRIPTION: PRINTS "WANT TO PLAY A GAME?" ONCE WHEN PENDING FLAG IS SET
+; DESCRIPTION: PRINTS "WANT TO PLAY A GAME?" WHEN PENDING FLAG IS SET
 ; INPUT: GAME_ASK_PENDING (0/1)
 ; OUTPUT: MAY PRINT PROMPT LINE
 ; ----------------------------------------------------------------------------
 CMD_ASK_GAME_IF_PENDING:
                         LDA         GAME_ASK_PENDING
                         BEQ         ?CMGA_DONE
-                        STZ         GAME_ASK_PENDING
                         PRT_CSTRING MSG_GAME_ASK
 ?CMGA_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: CMD_NOTIFY_INPUT_OVERFLOW
+; DESCRIPTION: PRINTS ONE-TIME INPUT OVERFLOW WARNING AFTER DROP-TO-EOL COMPLETES
+; ----------------------------------------------------------------------------
+CMD_NOTIFY_INPUT_OVERFLOW:
+                        LDA         #SYSF_INPUT_OVF_M
+                        BIT         SYS_FLAGS
+                        BEQ         ?CNIO_DONE
+                        LDA         #SYSF_DROP_EOL_M
+                        BIT         SYS_FLAGS
+                        BNE         ?CNIO_DONE
+                        LDA         #SYSF_INPUT_OVF_M
+                        TRB         SYS_FLAGS
+                        PRT_CSTRING MSG_INPUT_OVF
+                        JSR         PRT_CRLF
+                        JSR         PRT_UNDER
+?CNIO_DONE:
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -1358,25 +1805,119 @@ CMD_DISPATCH:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: COMMAND WRAPPERS FOR TABLE DISPATCH
 ; ----------------------------------------------------------------------------
-CMD_DO_WARM:
-                        LDA         #$01
-                        STA         CMD_POST_ACTION
-                        RTS
-
 CMD_DO_VECTORS:
                         JSR         PRT_CRLF
                         JSR         SHOW_VECTORS
                         RTS
 
 CMD_DO_CLEAR_SCREEN:
-                        LDX         #$FF ; REALLY CLEAR THE SCREEN
-?CDCS_LF_LOOP:
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CDCS_DO_CLEAR
+                        CMP         #'C'
+                        BEQ         ?CDCS_CLEAR_ARG
+                        CMP         #'2'
+                        BEQ         ?CDCS_SET_20
+                        CMP         #'4'
+                        BEQ         ?CDCS_SET_40
+                        CMP         #'8'
+                        BEQ         ?CDCS_SET_80
+                        CMP         #'1'
+                        BNE         ?CDCS_NOT_132
+                        JMP         ?CDCS_SET_132
+?CDCS_NOT_132:
+                        JMP         ?CDCS_USAGE
+?CDCS_CLEAR_ARG:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CDCS_DO_CLEAR
+                        JMP         ?CDCS_USAGE
+?CDCS_DO_CLEAR:
+                        JSR         TERM_CLEAR_VIEWPORT
+                        RTS
+?CDCS_SET_20:
+                        INX
+                        LDA         CMD_LINE,X
+                        CMP         #'0'
+                        BEQ         ?CDCS20_HAVE_ZERO
+                        JMP         ?CDCS_USAGE
+?CDCS20_HAVE_ZERO:
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CDCS20_SET
+                        JMP         ?CDCS_USAGE
+?CDCS20_SET:
+                        LDA         #TERM_COLS_20
+                        STA         TERM_COLS
+                        STZ         TERM_CUR_COL
+                        PRT_CSTRING MSG_T_SET_20
+                        RTS
+?CDCS_SET_40:
+                        INX
+                        LDA         CMD_LINE,X
+                        CMP         #'0'
+                        BNE         ?CDCS_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CDCS_USAGE
+                        LDA         #TERM_COLS_40
+                        STA         TERM_COLS
+                        STZ         TERM_CUR_COL
+                        PRT_CSTRING MSG_T_SET_40
+                        RTS
+?CDCS_SET_80:
+                        INX
+                        LDA         CMD_LINE,X
+                        CMP         #'0'
+                        BNE         ?CDCS_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CDCS_USAGE
+                        LDA         #TERM_COLS_80
+                        STA         TERM_COLS
+                        STZ         TERM_CUR_COL
+                        PRT_CSTRING MSG_T_SET_80
+                        RTS
+?CDCS_SET_132:
+                        INX
+                        LDA         CMD_LINE,X
+                        CMP         #'3'
+                        BNE         ?CDCS_USAGE
+                        INX
+                        LDA         CMD_LINE,X
+                        CMP         #'2'
+                        BNE         ?CDCS_USAGE
+                        INX
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CDCS_USAGE
+                        LDA         #TERM_COLS_132
+                        STA         TERM_COLS
+                        STZ         TERM_CUR_COL
+                        PRT_CSTRING MSG_T_SET_132
+                        RTS
+?CDCS_USAGE:
+                        PRT_CSTRING MSG_T_USAGE
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: TERM_CLEAR_VIEWPORT
+; DESCRIPTION: CLEARS TERMINAL VIEWPORT (CR + LF*127)
+; ----------------------------------------------------------------------------
+TERM_CLEAR_VIEWPORT:
+                        LDA         #$0D ; LEADING CR
+                        JSR         WRITE_BYTE
+                        LDX         #$7F ; 127 LF LINES
+?TCV_LF_LOOP:
                         LDA         #$0A
                         JSR         WRITE_BYTE
                         DEX
-                        BNE         ?CDCS_LF_LOOP
-                        LDA         #$0D ; final CR
-                        JSR         WRITE_BYTE
+                        BNE         ?TCV_LF_LOOP
                         RTS
 
 CMD_DO_HELP_SHORT:
@@ -1513,14 +2054,14 @@ CMD_DO_AUTOHELP_ON_ALIAS:
 
 CMD_DO_QUIT_MONITOR:
                         JSR         CMD_DO_QUIT
-                        LDA         #$01
+                        LDA         #POST_ACTION_MONITOR
                         STA         CMD_POST_ACTION
                         RTS
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_GO
-; DESCRIPTION: EXECUTE CODE AT ADDRESS
-; USAGE: X <START>
+; DESCRIPTION: LEGACY EXECUTE HELPER (X IS CURRENTLY RESERVED)
+; USAGE: R <START>
 ; ----------------------------------------------------------------------------
 CMD_DO_GO:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
@@ -1534,6 +2075,12 @@ CMD_DO_GO:
                         STA         PTR_LEG
                         LDA         CMD_PARSE_VAL+1
                         STA         PTR_LEG+1
+                        LDA         CMD_PARSE_VAL
+                        STA         REC_RUN_ADDR
+                        LDA         CMD_PARSE_VAL+1
+                        STA         REC_RUN_ADDR+1
+                        LDA         #$01
+                        STA         REC_RUN_VALID
                         LDA         #SYSF_GO_FLAG_M
                         TSB         SYS_FLAGS
                         LDA         PTR_LEG
@@ -1554,13 +2101,49 @@ CMD_DO_GO:
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_RESUME
-; DESCRIPTION: RESUMES LAST DEBUG CONTEXT (A/X/Y/P/SP/PC)
-; USAGE: R [A=HH] [X=HH] [Y=HH]
+; DESCRIPTION: CONTEXT-SENSITIVE R:
+;              - NO DEBUG CONTEXT: RUN CODE AT ADDRESS (R <START>)
+;              - DEBUG CONTEXT: RESUME LAST CONTEXT (OPTIONAL A/X/Y OVERRIDES)
+; USAGE: R <START>  OR  R [A=HH] [X=HH] [Y=HH]
 ; ----------------------------------------------------------------------------
 CMD_DO_RESUME:
                         LDA         BRK_FLAG ; REUSED AS "DEBUG CONTEXT VALID"
                         BNE         ?CR_HAVE_CTX
-                        PRT_CSTRING MSG_R_NO_CTX
+
+        ; --- R <START> WHEN NO DEBUG CONTEXT ---
+                        LDX         #$01 ; PARSE AFTER COMMAND LETTER
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BNE         ?CR_RUN_USAGE
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CR_RUN_USAGE
+                        LDA         CMD_PARSE_VAL
+                        STA         PTR_LEG
+                        LDA         CMD_PARSE_VAL+1
+                        STA         PTR_LEG+1
+                        LDA         CMD_PARSE_VAL
+                        STA         REC_RUN_ADDR
+                        LDA         CMD_PARSE_VAL+1
+                        STA         REC_RUN_ADDR+1
+                        LDA         #$01
+                        STA         REC_RUN_VALID
+                        LDA         #SYSF_GO_FLAG_M
+                        TSB         SYS_FLAGS
+                        LDA         PTR_LEG
+                        SEC
+                        SBC         #$01
+                        STA         PTR_LEG
+                        LDA         PTR_LEG+1
+                        SBC         #$00
+                        STA         PTR_LEG+1
+                        LDA         PTR_LEG+1
+                        PHA
+                        LDA         PTR_LEG
+                        PHA
+                        RTS
+?CR_RUN_USAGE:
+                        PRT_CSTRING MSG_R_USAGE
                         RTS
 ?CR_HAVE_CTX:
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
@@ -1608,6 +2191,45 @@ CMD_DO_RESUME:
                         STA         DBG_Y
                         JMP         DBG_RESUME_CONTEXT
 ?CR_USAGE:
+                        LDX         #$01 ; CHECK FOR ADDRESS-FORM R START
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BNE         ?CR_USAGE_GENERIC
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CR_USAGE_GENERIC
+                        LDA         #SYSF_FORCE_MODE_M
+                        BIT         SYS_FLAGS
+                        BNE         ?CR_FORCE_RUN
+                        PRT_CSTRING MSG_R_CTX_HINT
+                        RTS
+?CR_FORCE_RUN:
+                        STZ         BRK_FLAG ; EXPLICIT FORCE-RUN DROPS OLD CTX
+                        LDA         CMD_PARSE_VAL
+                        STA         PTR_LEG
+                        LDA         CMD_PARSE_VAL+1
+                        STA         PTR_LEG+1
+                        LDA         CMD_PARSE_VAL
+                        STA         REC_RUN_ADDR
+                        LDA         CMD_PARSE_VAL+1
+                        STA         REC_RUN_ADDR+1
+                        LDA         #$01
+                        STA         REC_RUN_VALID
+                        LDA         #SYSF_GO_FLAG_M
+                        TSB         SYS_FLAGS
+                        LDA         PTR_LEG
+                        SEC
+                        SBC         #$01
+                        STA         PTR_LEG
+                        LDA         PTR_LEG+1
+                        SBC         #$00
+                        STA         PTR_LEG+1
+                        LDA         PTR_LEG+1
+                        PHA
+                        LDA         PTR_LEG
+                        PHA
+                        RTS
+?CR_USAGE_GENERIC:
                         PRT_CSTRING MSG_R_USAGE
                         RTS
 
@@ -1746,7 +2368,7 @@ CMD_DO_GAME:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_INFO
 ; DESCRIPTION: INFO NAMESPACE ROOT
-; USAGE: I   OR   I A   OR   I T0 [0|1]   OR   I I 0|1   OR
+; USAGE: I   OR   I A   OR   I T0 [0|1|7|F|80]   OR   I I [0|1]   OR
 ;        I C <RPN TOKENS>   OR
 ;        IC <RPN TOKENS>
 ; ----------------------------------------------------------------------------
@@ -1783,17 +2405,82 @@ CMD_DO_INFO:
                         INX             ; PARSE TIMER ACTION ARG
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
-                        BEQ         ?CID_TIMER_USAGE
+                        BEQ         ?CID_TIMER_STATUS
                         CMP         #'1'
-                        BEQ         ?CID_TIMER_ON
+                        BNE         ?CID_TIMER_CHK_0
+                        JMP         ?CID_TIMER_ON_NORMAL
+?CID_TIMER_CHK_0:
                         CMP         #'0'
-                        BEQ         ?CID_TIMER_OFF
+                        BNE         ?CID_TIMER_CHK_7
+                        JMP         ?CID_TIMER_OFF
+?CID_TIMER_CHK_7:
+                        CMP         #'7'
+                        BNE         ?CID_TIMER_CHK_F
+                        JMP         ?CID_TIMER_ON_7
+?CID_TIMER_CHK_F:
+                        CMP         #'F'
+                        BNE         ?CID_TIMER_CHK_80
+                        JMP         ?CID_TIMER_ON_F
+?CID_TIMER_CHK_80:
+                        CMP         #'8'
+                        BNE         ?CID_TIMER_USAGE
+                        LDA         CMD_LINE+1,X
+                        CMP         #'0'
+                        BNE         ?CID_TIMER_USAGE
+                        JMP         ?CID_TIMER_ON_80
 ?CID_TIMER_USAGE:
                         PRT_CSTRING MSG_IT_USAGE
                         RTS
-?CID_TIMER_ON:
+?CID_TIMER_STATUS:
+                        LDA         VIA_IER ; T1 ENABLE LIVES IN IER BIT6
+                        AND         #$40
+                        BNE         ?CID_TIMER_ON_MSG
+                        PRT_CSTRING MSG_IT_OFF
+                        RTS
+?CID_TIMER_ON_MSG:
+                        LDA         HEARTBEAT_MODE
+                        CMP         #'7'
+                        BEQ         ?CID_TIMER_MSG_7
+                        CMP         #'F'
+                        BEQ         ?CID_TIMER_MSG_F
+                        CMP         #$80
+                        BEQ         ?CID_TIMER_MSG_80
+                        PRT_CSTRING MSG_IT_ON
+                        RTS
+?CID_TIMER_MSG_7:
+                        PRT_CSTRING MSG_IT_7
+                        RTS
+?CID_TIMER_MSG_F:
+                        PRT_CSTRING MSG_IT_F
+                        RTS
+?CID_TIMER_MSG_80:
+                        PRT_CSTRING MSG_IT_80
+                        RTS
+?CID_TIMER_ON_NORMAL:
+                        LDA         #'1'
+                        STA         HEARTBEAT_MODE
                         JSR         VIA_T1_START_FREE
                         PRT_CSTRING MSG_IT_ON
+                        RTS
+?CID_TIMER_ON_7:
+                        LDA         #'7'
+                        STA         HEARTBEAT_MODE
+                        JSR         VIA_T1_START_FREE
+                        PRT_CSTRING MSG_IT_7
+                        RTS
+?CID_TIMER_ON_F:
+                        LDA         #'F'
+                        STA         HEARTBEAT_MODE
+                        JSR         VIA_T1_START_FREE
+                        PRT_CSTRING MSG_IT_F
+                        RTS
+?CID_TIMER_ON_80:
+                        LDA         #$80
+                        STA         HEARTBEAT_MODE
+                        JSR         VIA_T1_START_FREE
+                        LDA         #$0F ; START GREEN HALF, THEN ALTERNATE
+                        STA         HEARTBEAT_PHASE
+                        PRT_CSTRING MSG_IT_80
                         RTS
 ?CID_TIMER_OFF:
                         JSR         VIA_T1_STOP
@@ -1803,11 +2490,22 @@ CMD_DO_INFO:
                         INX             ; PARSE AFTER SECOND 'I'
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
+                        BEQ         ?CID_IRQ_STATUS
                         CMP         #'1'
                         BEQ         ?CID_IRQ_ON
                         CMP         #'0'
                         BEQ         ?CID_IRQ_OFF
                         PRT_CSTRING MSG_II_USAGE
+                        RTS
+?CID_IRQ_STATUS:
+                        PHP
+                        PLA
+                        AND         #$04 ; P.I BIT: 1=MASKED, 0=ENABLED
+                        BNE         ?CID_IRQ_OFF_MSG
+                        PRT_CSTRING MSG_II_ON
+                        RTS
+?CID_IRQ_OFF_MSG:
+                        PRT_CSTRING MSG_II_OFF
                         RTS
 ?CID_IRQ_ON:
                         CLI             ; ENABLE CPU IRQ HANDLING
@@ -2545,6 +3243,12 @@ CMD_DO_LOAD_SREC_GO:
                         LDA         PTR_TEMP+1
                         STA         PTR_LEG+1
 ?LGS_GO:
+                        LDA         PTR_LEG
+                        STA         REC_RUN_ADDR
+                        LDA         PTR_LEG+1
+                        STA         REC_RUN_ADDR+1
+                        LDA         #$01
+                        STA         REC_RUN_VALID
                         LDA         #SYSF_GO_FLAG_M
                         TSB         SYS_FLAGS
                         LDA         PTR_LEG
@@ -3097,8 +3801,6 @@ CMD_TABLE:
                         DW          CMD_DO_CLEAR_SCREEN
                         DB          'C'
                         DW          CMD_DO_COPY
-                        DB          'W'
-                        DW          CMD_DO_WARM
                         DB          'M'
                         DW          CMD_DO_MODIFY
                         DB          'D'
@@ -3107,8 +3809,6 @@ CMD_TABLE:
                         DW          CMD_DO_UNASM
                         DB          'A'
                         DW          CMD_DO_ASM
-                        DB          'X'
-                        DW          CMD_DO_GO
                         DB          'G'
                         DW          CMD_DO_GAME
                         DB          'I'
@@ -3187,7 +3887,6 @@ CMD_PRINT_HELP_FULL:
                         PRT_CSTRING MSG_HELP_FULL_3
                         PRT_CSTRING MSG_HELP_FULL_4
                         PRT_CSTRING MSG_HELP_FULL_5
-                        PRT_CSTRING MSG_HELP_FULL_6
                         PRT_CSTRING MSG_HELP_FULL_7
                         PRT_CSTRING MSG_HELP_FULL_38
                         PRT_CSTRING MSG_HELP_FULL_8
@@ -3315,13 +4014,6 @@ CMD_PRINT_HELP_FIXED_ADDRS:
                         JSR         PRT_HEX
                         PRT_CSTRING MSG_HELP_GAME_END
 
-                        PRT_CSTRING MSG_HELP_TERM_ADDR
-                        LDA         #<ZP_TERM_COLS_ADDR
-                        JSR         PRT_HEX
-                        PRT_CSTRING MSG_HELP_TERM_SET
-                        LDA         #<ZP_TERM_COLS_ADDR
-                        JSR         PRT_HEX
-                        PRT_CSTRING MSG_HELP_TERM_END
                         PRT_CSTRING MSG_HELP_USER_ZP
                         RTS
 
@@ -3336,6 +4028,7 @@ CMD_PRINT_HELP_FIXED_ADDRS:
 ;   - If END+1 wraps to $0000, it is treated as exclusive $10000.
 ; ----------------------------------------------------------------------------
 CMD_DO_DUMP:
+                        STZ         REC_CMD_ACTIVE
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
@@ -3444,6 +4137,14 @@ CMD_DO_DUMP:
                         RTS
 
 DD_RUN:
+                        LDA         #'D'
+                        STA         REC_CMD_ID
+                        LDA         #$01
+                        STA         REC_CMD_ACTIVE
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         MEM_DUMP
                         LDA         PTR_TEMP ; REMEMBER NEXT START
                         STA         DUMP_NEXT
@@ -3451,6 +4152,7 @@ DD_RUN:
                         STA         DUMP_NEXT+1
                         LDA         #$01
                         STA         DUMP_VALID
+                        STZ         REC_CMD_ACTIVE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -3462,6 +4164,7 @@ DD_RUN:
 ;   - OUTPUT FORMAT: "ADDR: MNM OPERAND"
 ; ----------------------------------------------------------------------------
 CMD_DO_UNASM:
+                        STZ         REC_CMD_ACTIVE
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
@@ -3544,6 +4247,14 @@ CMD_DO_UNASM:
                         RTS
 
 UD_RUN:
+                        LDA         #'U'
+                        STA         REC_CMD_ID
+                        LDA         #$01
+                        STA         REC_CMD_ACTIVE
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         MEM_DISASM_65C02
         ; Use actual disassembler post-run cursor so repeats continue
         ; at the next instruction boundary (not just END+1).
@@ -3553,6 +4264,7 @@ UD_RUN:
                         STA         UNASM_NEXT+1
                         LDA         #$01
                         STA         UNASM_VALID
+                        STZ         REC_CMD_ACTIVE
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -4489,6 +5201,7 @@ ASM_IS_BB_BRANCH:
 ;   - NO INTERACTIVE MODE FOR F.
 ; ----------------------------------------------------------------------------
 CMD_DO_FILL:
+                        STZ         REC_CMD_ACTIVE
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
 
                         JSR         CMD_PARSE_ADDR16_TOKEN
@@ -4561,7 +5274,16 @@ CMD_DO_FILL:
                         RTS
 
 ?FD_FILL_START:
+                        LDA         #'F'
+                        STA         REC_CMD_ID
+                        LDA         #$01
+                        STA         REC_CMD_ACTIVE
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         MEM_FILL_PATTERN
+                        STZ         REC_CMD_ACTIVE
                         RTS
 
 ?FD_USAGE:
@@ -4582,6 +5304,7 @@ CMD_DO_FILL:
 ;   - S C TREATS REST-OF-LINE AS LITERAL TEXT (NO QUOTE ESCAPING YET).
 ; ----------------------------------------------------------------------------
 CMD_DO_SEARCH:
+                        STZ         REC_CMD_ACTIVE
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
                         JSR         CMD_SKIP_SPACES
                         LDA         CMD_LINE,X
@@ -4639,7 +5362,16 @@ CMD_DO_SEARCH:
 ?SD_C_DONE:
 
 ?SD_RUN:
+                        LDA         #'S'
+                        STA         REC_CMD_ID
+                        LDA         #$01
+                        STA         REC_CMD_ACTIVE
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         SEARCH_RUN
+                        STZ         REC_CMD_ACTIVE
                         RTS
 
 ?SD_USAGE:
@@ -4705,6 +5437,10 @@ SEARCH_PARSE_RANGE:
 SEARCH_RUN:
                         STZ         SEARCH_FOUND
 ?SR_LOOP:
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         SEARCH_HAS_ROOM
                         BCS         ?SR_DONE_SCAN
                         JSR         SEARCH_MATCH_AT_CUR
@@ -4917,6 +5653,10 @@ MEM_FILL_PATTERN:
                         BEQ         ?MFP_DONE
 
 ?MFP_DO_WRITE:
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         LDA         PTR_DUMP_CUR+1
                         JSR         CHECK_ADDR_ALLOWED_HI
                         BCS         ?MFP_FAIL
@@ -4989,6 +5729,7 @@ F_VERIFY_WRITE:
 ;   - CHOOSES FORWARD/BACKWARD COPY AUTOMATICALLY FOR OVERLAP SAFETY.
 ; ----------------------------------------------------------------------------
 CMD_DO_COPY:
+                        STZ         REC_CMD_ACTIVE
                         LDX         #$01 ; PARSE AFTER COMMAND LETTER
 
                         JSR         CMD_PARSE_ADDR16_TOKEN
@@ -5049,7 +5790,16 @@ CMD_DO_COPY:
                         JMP         ?CD_USAGE
 
 ?CD_SELECT_DIR:
+                        LDA         #'C'
+                        STA         REC_CMD_ID
+                        LDA         #$01
+                        STA         REC_CMD_ACTIVE
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         JSR         MEM_COPY_RANGE
+                        STZ         REC_CMD_ACTIVE
                         RTS
 
 ?CD_USAGE:
@@ -5115,6 +5865,10 @@ MEM_COPY_RANGE:
 
 ?MCR_FWD_INIT:
 ?MCR_FWD_LOOP:
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         LDA         PTR_TEMP+1
                         JSR         CHECK_ADDR_ALLOWED_HI
                         BCC         ?MCR_FWD_DST_OK
@@ -5198,6 +5952,10 @@ MEM_COPY_RANGE:
                         STA         PTR_TEMP+1
 
 ?MCR_BWD_LOOP:
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         LDA         PTR_TEMP+1
                         JSR         CHECK_ADDR_ALLOWED_HI
                         BCS         ?MCR_FAIL
@@ -6207,6 +6965,60 @@ PRT_UNDER:              PUSH        A
 ; SUBROUTINE: INIT_NMI / INIT_IRQ
 ; DESCRIPTION: SETS HARDWARE JUMP VECTORS IN ZP RAM
 ; ----------------------------------------------------------------------------
+SNAPSHOT_VECTOR_HOOKS:
+                        LDA         NMI_HOOK
+                        STA         NMI_HOOK_SAVED
+                        LDA         NMI_HOOK+1
+                        STA         NMI_HOOK_SAVED+1
+                        LDA         NMI_HOOK+2
+                        STA         NMI_HOOK_SAVED+2
+                        LDA         IRQ_HOOK
+                        STA         IRQ_HOOK_SAVED
+                        LDA         IRQ_HOOK+1
+                        STA         IRQ_HOOK_SAVED+1
+                        LDA         IRQ_HOOK+2
+                        STA         IRQ_HOOK_SAVED+2
+                        LDA         BRK_HOOK
+                        STA         BRK_HOOK_SAVED
+                        LDA         BRK_HOOK+1
+                        STA         BRK_HOOK_SAVED+1
+                        LDA         BRK_HOOK+2
+                        STA         BRK_HOOK_SAVED+2
+                        LDA         HW_HOOK
+                        STA         HW_HOOK_SAVED
+                        LDA         HW_HOOK+1
+                        STA         HW_HOOK_SAVED+1
+                        LDA         HW_HOOK+2
+                        STA         HW_HOOK_SAVED+2
+                        RTS
+
+RESTORE_VECTOR_HOOKS:
+                        LDA         NMI_HOOK_SAVED
+                        STA         NMI_HOOK
+                        LDA         NMI_HOOK_SAVED+1
+                        STA         NMI_HOOK+1
+                        LDA         NMI_HOOK_SAVED+2
+                        STA         NMI_HOOK+2
+                        LDA         IRQ_HOOK_SAVED
+                        STA         IRQ_HOOK
+                        LDA         IRQ_HOOK_SAVED+1
+                        STA         IRQ_HOOK+1
+                        LDA         IRQ_HOOK_SAVED+2
+                        STA         IRQ_HOOK+2
+                        LDA         BRK_HOOK_SAVED
+                        STA         BRK_HOOK
+                        LDA         BRK_HOOK_SAVED+1
+                        STA         BRK_HOOK+1
+                        LDA         BRK_HOOK_SAVED+2
+                        STA         BRK_HOOK+2
+                        LDA         HW_HOOK_SAVED
+                        STA         HW_HOOK
+                        LDA         HW_HOOK_SAVED+1
+                        STA         HW_HOOK+1
+                        LDA         HW_HOOK_SAVED+2
+                        STA         HW_HOOK+2
+                        RTS
+
 INIT_NMI:               PUSH        A
                         LDA         #$4C ; JMP OPCODE
                         STA         NMI_HOOK ; STORE
@@ -6250,6 +7062,7 @@ INIT_RST:
                         TXS             ; MOVE TO SP
 
         ; --- INIT ALL VECTORS ---
+                        JSR         SNAPSHOT_VECTOR_HOOKS
                         JSR         INIT_NMI ; Setup NMI_HOOK trampoline
                         JSR         INIT_IRQ ; Setup IRQ_HOOK trampoline
                         JSR         INIT_IRQ_SUBHOOKS
@@ -6269,8 +7082,6 @@ INIT_RST:
 SYS_NMI:                SEI             ; LOCK INTS
                         CLD             ; CLEAR DEC
                         JSR         DEBUG_NMI
-                        LDA         #$01 ; ASK ONCE AFTER NMI RETURNS TO MONITOR
-                        STA         GAME_ASK_PENDING
                         LDA         #SYSF_NMI_FLAG_M
                         TSB         SYS_FLAGS
                         LDA         #SYSF_GO_FLAG_M
@@ -6292,8 +7103,12 @@ SYS_NMI:                SEI             ; LOCK INTS
                         TXS
                         RTI             ; DONE (RUN-MODE BREAK TO MONITOR)
 ?SNMI_MONITOR_IDLE:
-                        JSR         PRT_CRLF ; RE-ISSUE PROMPT WHEN INTERRUPTING
-                        JSR         PRT_UNDER ; MONITOR-IDLE CODE PATH
+                        ; FORCE BREAK TO MONITOR EVEN OUTSIDE GO MODE
+                        TSX
+                        LDA         #<MONITOR
+                        STA         $102,X ; STACKED PC LO (AFTER RTI)
+                        LDA         #>MONITOR
+                        STA         $103,X ; STACKED PC HI (AFTER RTI)
                         RTI             ; DONE
 
 STR_NMI_NAME:           DB          "               **NMI_PLACEHOLDER**", 0
@@ -6338,7 +7153,7 @@ SYS_IRQ_BRK_DISPATCH:
                         ADC         #$04 ; DROP STALE RTS TRAMPOLINE FRAME
                         TAX
                         TXS
-                        BRA         SYS_IRQ_HW_RTI
+                        JMP         SYS_IRQ_HW_RTI
 SYS_IRQ_BRK_PATCH_DIRECT:
                         TSX
                         LDA         #<MONITOR
@@ -6352,15 +7167,74 @@ SYS_IRQ_HW_DISPATCH:
                         BEQ         ?SIHD_EXIT
                         LDA         VIA_T1L ; READ LOW COUNTER TO ACK T1 IRQ
                         INC         HEARTBEAT_DIV
+                        ; T0 BASE: 8MHZ / 65536 = 122.0703125HZ
+                        ; I T0 1: classic toggle each 256 ticks (~0.238 CPS full cycle)
+                        ; I T0 7: heartbeat pattern (fast double pulse)
+                        ; I T0 F: heartbeat pattern (slow double pulse)
+                        ; I T0 80: wig-wag PB0-3/PB4-7 at current T0 cadence
+                        LDA         HEARTBEAT_MODE
+                        CMP         #'7'
+                        BEQ         ?SIHD_MODE_7
+                        CMP         #'F'
+                        BEQ         ?SIHD_MODE_F
+                        CMP         #$80
+                        BEQ         ?SIHD_MODE_80
+                        ; DEFAULT MODE '1': TOGGLE ON DIV WRAP
                         LDA         HEARTBEAT_DIV
-                        ; TOGGLE ONLY ON DIV WRAP (~256 TICKS):
-                        ; AT ~122HZ T0 THIS IS ~2.1S PER TOGGLE (~4.2S FULL CYCLE)
-                        AND         #$FF
                         BNE         ?SIHD_HB_READY
                         LDA         HEARTBEAT_PHASE
                         EOR         #$FF ; FLIP WHOLE LED OVERLAY MASK
                         STA         HEARTBEAT_PHASE
+                        BRA         ?SIHD_HB_READY
+?SIHD_MODE_7:
+                        ; CYCLE 128 TICKS (~1.0486S): ON 0-7, OFF 8-15, ON 16-23, OFF 24-127
+                        LDA         HEARTBEAT_DIV
+                        AND         #$7F
+                        CMP         #8
+                        BCC         ?SIHD_SET_ON
+                        CMP         #16
+                        BCC         ?SIHD_SET_OFF
+                        CMP         #24
+                        BCC         ?SIHD_SET_ON
+                        BRA         ?SIHD_SET_OFF
+?SIHD_MODE_F:
+                        ; CYCLE 256 TICKS (~2.0972S): OFF 0-11, ON 12-23, OFF 24-35, ON 36-255
+                        LDA         HEARTBEAT_DIV
+                        CMP         #12
+                        BCC         ?SIHD_SET_OFF
+                        CMP         #24
+                        BCC         ?SIHD_SET_ON
+                        CMP         #36
+                        BCC         ?SIHD_SET_OFF
+                        BRA         ?SIHD_SET_ON
+?SIHD_MODE_80:
+                        ; TOGGLE NIBBLES ON DIV WRAP (SAME WRAP RATE AS MODE '1')
+                        LDA         HEARTBEAT_DIV
+                        BNE         ?SIHD_HB_READY
+                        LDA         HEARTBEAT_PHASE
+                        CMP         #$0F
+                        BEQ         ?SIHD_MODE_80_SET_F0
+                        LDA         #$0F
+                        STA         HEARTBEAT_PHASE
+                        BRA         ?SIHD_HB_READY
+?SIHD_MODE_80_SET_F0:
+                        LDA         #$F0
+                        STA         HEARTBEAT_PHASE
+                        BRA         ?SIHD_HB_READY
+?SIHD_SET_ON:
+                        LDA         #$FF
+                        STA         HEARTBEAT_PHASE
+                        BRA         ?SIHD_HB_READY
+?SIHD_SET_OFF:
+                        STZ         HEARTBEAT_PHASE
 ?SIHD_HB_READY:
+                        LDA         HEARTBEAT_MODE
+                        CMP         #$80
+                        BNE         ?SIHD_HB_BLEND
+                        LDA         HEARTBEAT_PHASE ; DIRECT WIG-WAG LED PATTERN
+                        STA         LED_DATA
+                        BRA         ?SIHD_EXIT
+?SIHD_HB_BLEND:
                         LDA         PIA_PB ; SAMPLE PB0..PB7
                         EOR         #$FF ; INVERT FOR LED DISPLAY
                         EOR         HEARTBEAT_PHASE ; OVERLAY HEARTBEAT TOGGLE
@@ -6566,6 +7440,10 @@ MEM_DISASM_65C02:
                         LDA         PTR_DUMP_CUR+1
                         ADC         #$00
                         STA         PTR_DUMP_CUR+1
+                        LDA         PTR_DUMP_CUR
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_DUMP_CUR+1
+                        STA         REC_NEXT_ADDR+1
                         BCS         ?MDIS_DONE ; WRAP ENDS RANGE
                         JSR         PRT_CRLF
                         JMP         ?MDIS_NEXT
@@ -7007,6 +7885,10 @@ MEM_DUMP:
                         BEQ         ?FINISHED
 
 ?CONTINUE_DUMP:
+                        LDA         PTR_LEG
+                        STA         REC_NEXT_ADDR
+                        LDA         PTR_LEG+1
+                        STA         REC_NEXT_ADDR+1
                         LDA         PTR_LEG ; UPDATE CURSOR
                         STA         PTR_DUMP_CUR
                         LDA         PTR_LEG+1
@@ -7314,13 +8196,18 @@ U_OP_MNEM_TAB:
                         DB          "BEQSBCSBCNOPNOPSBCINCSMB"
                         DB          "SEDSBCPLXNOPNOPSBCINCBBS"
 
+KDATA_REGION_START:
 BSO2_INIT:              DB          $0D, $0A, $0D, $0A
                         DB          "     **** basic system operations/2 ****"
                         DB          $0D, $0A
-                        DB          "     ****     b s o / 2  R0M0V1I00 ****"
+                        DB          "     ****     b s o / 2  R0M0V2I01  ****"
                         DB          $0D, $0A
                         DB          "     ****         6 5 0 2           ****"
-                        DB          $0D, $0A, $0D, $0A, 0
+                        DB          $0D, $0A, 0
+MSG_BANNER_SIZE_PREFIX: DB          "     **** ", 0
+MSG_BANNER_SIZE_SUFFIX: DB          " ****", $0D, $0A, 0
+MSG_BANNER_CSUM_PREFIX: DB          "     **** ", 0
+MSG_BANNER_CSUM_SUFFIX: DB          " ****", $0D, $0A, $0D, $0A, 0
 OSI:                    DB          $0D, $0A, "C/W/M", 0
 OSI_CM:                 DB          $0D, $0A, "C/M", 0
 MSG_RESET_TRIGGERED:    DB          $0D, $0A, "RESET TRIGGERED", 0
@@ -7328,14 +8215,15 @@ MSG_CLR_CONFIRM:        DB          $0D, $0A, "CLEAR MEMORY? (Y/N)", 0
 MSG_POWER_ON:           DB          $0D, $0A, "POWER ON", 0
 MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
 MSG_WARMSTART:          DB          "WARMSTART", 0
+MSG_MONITORSTART:       DB          $0D, $0A, "MONITORSTART", 0
 MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
-                        DB          "TERM WIDTH 4=40 8=80 1=132 [8]?", 0
+                        DB          "TERM WIDTH 2=20 4=40 8=80 1=132 [8]?", 0
 MSG_HELP_BOOT_SHORT:    DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q W Z T  EXEC:G N R X  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q Z T  EXEC:G N R  MEM:A C "
                         DB          "D F L M S U V", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q W Z T  EXEC:G N R X  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q Z T  EXEC:G N R  MEM:A C "
                         DB          "D F L M S U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S/-/+  "
@@ -7368,14 +8256,14 @@ MSG_HELP_FULL_5:        DB          $0D, $0A
                         DB          "  Q                WAI HALT; RESUME VIA "
                         DB          "NMI/RESET", 0
 MSG_HELP_FULL_6:        DB          $0D, $0A
-                        DB          "  W                WARM START (MONITOR)"
+                        DB          "  W                RESET MENU WARM (+HINTS)"
                         DB          0
 MSG_HELP_FULL_7:        DB          $0D, $0A
                         DB          "  Z                CLEAR RAM (CONFIRM Y/"
                         DB          "N)", 0
 MSG_HELP_FULL_38:       DB          $0D, $0A
-                        DB          "  T                CLEAR SCREEN (LF*24 + C"
-                        DB          "R)", 0
+                        DB          "  T [C|20|40|80|132] TERMINAL CLEAR / SET C"
+                        DB          "S", 0
 MSG_HELP_FULL_8:        DB          $0D, $0A, $0D, $0A
                         DB          "  [EXECUTION/DEBUG]"
                         DB          0
@@ -7383,16 +8271,15 @@ MSG_HELP_FULL_9:        DB          $0D, $0A
                         DB          "  N                NEXT (RAM PATCH; NO R"
                         DB          "OM/I/O)", 0
 MSG_HELP_FULL_10:       DB          $0D, $0A
-                        DB          "  R [A/X/Y=HH]     RESUME LAST DEBUG CONT"
-                        DB          "EXT", 0
+                        DB          "  R S / R [A/X/Y=HH] RUN (NO CTX) OR RES"
+                        DB          "UME", 0
 MSG_HELP_FULL_11:       DB          $0D, $0A
-                        DB          "  X S              EXECUTE; NMI BREAKS TO"
-                        DB          " MONITOR", 0
+                        DB          "  X                RESERVED (FUTURE)", 0
 MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  I / I A / I T0 [0|1] / I I 0|1 / I C EXPR "
+                        DB          "  I / I A / I T0 [0|1|7|F|80] / I I [0|1] / I C EXPR "
                         DB          "INFO / EASTER EGG / RPN CALC "
                         DB          "(16-BIT HEX TOKENS)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
@@ -7449,10 +8336,10 @@ MSG_HELP_FULL_30:       DB          $0D, $0A, $0D, $0A
                         DB          "  [STEERING] (PLANNED/PROVISIONAL)"
                         DB          0
 MSG_HELP_FULL_31:       DB          $0D, $0A
-                        DB          "  STYLE            NOUN VERB (M D, X S, I"
+                        DB          "  STYLE            NOUN VERB (M D, R S, I"
                         DB          " O V)", 0
 MSG_HELP_FULL_32:       DB          $0D, $0A
-                        DB          "  WILL CHANGE      X->J EXEC, TIME->I T, T"
+                        DB          "  WILL CHANGE      X RESERVED, TIME->I T, T"
                         DB          "->TERMINAL", 0
 MSG_HELP_FULL_33:       DB          $0D, $0A
                         DB          "  DEPRECATED       TOP-LEVEL P/V; USE I O "
@@ -7475,13 +8362,19 @@ MSG_HELP_GAME_ADDR:     DB          $0D, $0A
 MSG_HELP_GAME_SET:      DB          " !M ", 0
 MSG_HELP_GAME_CLR:      DB          " 01=SET  !M ", 0
 MSG_HELP_GAME_END:      DB          " 00=CLEAR", 0
-MSG_HELP_TERM_ADDR:     DB          $0D, $0A
-                        DB          "  TERM COL   @ $", 0
-MSG_HELP_TERM_SET:      DB          " !M ", 0
-MSG_HELP_TERM_END:      DB          " 28/50/84 (40/80/132)", 0
 MSG_HELP_USER_ZP:       DB          $0D, $0A
                         DB          "  USER ZP    @ $90-$FF", 0
+MSG_REC_HINT_CMD:       DB          "HINT: ", 0
+MSG_REC_HINT_NEXT:      DB          " NEXT=$", 0
+MSG_REC_HINT_RUN:       DB          "HINT: R ", 0
 MSG_UNKNOWN_CMD:        DB          $0D, $0A, "UNKNOWN CMD", 0
+MSG_INPUT_OVF:          DB          $0D, $0A, "INPUT OVERFLOW; LINE DROPPED", 0
+MSG_T_USAGE:            DB          $0D, $0A
+                        DB          "USAGE: T [C|20|40|80|132]", 0
+MSG_T_SET_20:           DB          $0D, $0A, "TERM COLS=20", 0
+MSG_T_SET_40:           DB          $0D, $0A, "TERM COLS=40", 0
+MSG_T_SET_80:           DB          $0D, $0A, "TERM COLS=80", 0
+MSG_T_SET_132:          DB          $0D, $0A, "TERM COLS=132", 0
 MSG_D_USAGE:            DB          $0D, $0A, "USAGE: D [START [END]]", 0
 MSG_D_RANGE_ERR:        DB          $0D, $0A, "D RANGE ERROR", 0
 MSG_U_USAGE:            DB          $0D, $0A, "USAGE: U [START END]", 0
@@ -7490,16 +8383,20 @@ MSG_A_USAGE:            DB          $0D, $0A
                         DB          "USAGE: A START [MNEMONIC OPERANDS]", 0
 MSG_A_RANGE_ERR:        DB          $0D, $0A
                         DB          "A BRANCH RANGE ERROR", 0
-MSG_G_USAGE:            DB          $0D, $0A, "USAGE: X START", 0
-MSG_I_INFO:             DB          $0D, $0A, "R0M0V1I00", 0
+MSG_G_USAGE:            DB          $0D, $0A, "USAGE: R START", 0
+MSG_I_INFO:             DB          $0D, $0A, "R0M0V2I01", 0
 MSG_I_ABOUT:            DB          $0D, $0A, "95west.us", 0
-MSG_IT_ON:              DB          $0D, $0A, "I T0 1 TIMER1 FREE-RUN: ON (~122HZ @8MHZ)", 0
+MSG_IT_ON:              DB          $0D, $0A, "I T0 1 TIMER1 FREE-RUN: ON (~122.07HZ @8MHZ)", 0
+MSG_IT_7:               DB          $0D, $0A, "I T0 7 HEARTBEAT: FAST DOUBLE-PULSE", 0
+MSG_IT_F:               DB          $0D, $0A, "I T0 F HEARTBEAT: SLOW DOUBLE-PULSE", 0
+MSG_IT_80:              DB          $0D, $0A, "I T0 80 WIG-WAG: PB0-3/PB4-7 ALTERNATE", 0
 MSG_IT_OFF:             DB          $0D, $0A, "I T0 0 TIMER1 FREE-RUN: OFF", 0
-MSG_IT_USAGE:           DB          $0D, $0A, "USAGE: I T0 1 (ON) | I T0 0 (OFF)", 0
+MSG_IT_USAGE:           DB          $0D, $0A
+                        DB          "USAGE: I T0 0 (OFF) | I T0 1 (ON) | I T0 7 | I T0 F | I T0 80", 0
 MSG_II_ON:              DB          $0D, $0A, "I I 1 CPU IRQ: ENABLED", 0
 MSG_II_OFF:             DB          $0D, $0A, "I I 0 CPU IRQ: DISABLED", 0
 MSG_II_USAGE:           DB          $0D, $0A, "USAGE: I I 1 (ENABLE IRQ) | I I 0 (DISABLE IRQ)", 0
-MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1] | I I 0|1 | I C <RPN>", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I T0 [0|1|7|F|80] | I I [0|1] | I C <RPN>", 0
 MSG_IC_USAGE:           DB          $0D, $0A
                         DB          "USAGE: I C T0 [T1 ...]  TOKENS: HEX,+,-,*,/"
                         DB          ",&,|,^,~", 0
@@ -7511,7 +8408,9 @@ MSG_IC_EMPTY:           DB          $0D, $0A, "I C EMPTY", 0
 MSG_IC_RESULT:          DB          $0D, $0A, "I C = $", 0
 MSG_IC_REM:             DB          "  REM = $", 0
 MSG_R_USAGE:            DB          $0D, $0A
-                        DB          "USAGE: R [A=HH] [X=HH] [Y=HH]", 0
+                        DB          "USAGE: R START | R [A=HH] [X=HH] [Y=HH]", 0
+MSG_R_CTX_HINT:         DB          $0D, $0A
+                        DB          "R CTX ACTIVE, R [A/X/Y=] or !R START", 0
 MSG_R_NO_CTX:           DB          $0D, $0A, "NO DEBUG CONTEXT", 0
 MSG_N_USAGE:            DB          $0D, $0A, "USAGE: N", 0
 MSG_GAME_USAGE:         DB          $0D, $0A, "USAGE: G", 0
@@ -7524,7 +8423,7 @@ MSG_LB_READY:           DB          $0D, $0A, "L B READY - SEND RAW BYTES", 0
 MSG_LB_DONE:            DB          $0D, $0A, "L B LOAD COMPLETE", 0
 MSG_LB_ABORT:           DB          $0D, $0A, "L B ABORTED", 0
 MSG_N_ROM:              DB          $0D, $0A, "N UNSUPPORTED IN ROM/I/O", 0
-MSG_GAME_ASK:           DB          $0D, $0A, "WANT TO PLAY A GAME?", 0
+MSG_GAME_ASK:           DB          $0D, $0A, "WANT TO PLAY A GAME (@$78)?", 0
 MSG_GAME_INTRO:         DB          $0D, $0A, "I AM THINKING OF A NUMBER (1-10)", 0
 MSG_GAME_PROMPT:        DB          $0D, $0A, "? ", 0
 MSG_GAME_BAD_INPUT:     DB          $0D, $0A, "ENTER 1..10", 0
@@ -7567,4 +8466,5 @@ STR_ARROW:              DB          " > ", 0
 STR_CURR:               DB          "CURR: ", 0
 STR_STATE:              DB          "STATE:", 0
 STR_NEXT:               DB          "NEXT: ", 0
+KDATA_REGION_END:
                         END

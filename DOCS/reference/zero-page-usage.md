@@ -8,12 +8,12 @@ Source include model: prefer `INCLUDE EQUATES.INC` for monitor builds; `EQUATES.
 | Label | Size | Address | Use | Ref |
 |---|---:|---:|---|---:|
 | CORE_WORKSPACE | 72 bytes | `$30-$77` | Monitor workspace (pointers, parser, debug scratch) | 1 |
-| GAME_ASK_PENDING | 1 byte | `$78` | One-shot game prompt latch | 3 |
+| GAME_ASK_PENDING | 1 byte | `$78` | Sticky game prompt latch (`01` default on POR/invalid-cookie only; warm reset preserves) | 3 |
 | BRK_FLAG | 1 byte | `$79` | Debug/BRK context-valid flag | 5 |
-| TERM_COLS | 1 byte | `$7A` | Terminal width preference (`28/50/84`) | 7 |
-| TERM_WIDTH_TIMEOUT | 1 byte | `$7B` | Width prompt timeout seconds (`00=forever`, `01-FF=seconds`; default `08`) | 8 |
-| RESERVED_GAP_A | 2 bytes | `$7C-$7D` | Reserved gap before prompt scratch | |
-| TERM_WAIT_LED | 1 byte | `$7E` | Width prompt LED blink-pattern scratch | |
+| TERM_COLS | 1 byte | `$7A` | Terminal width preference (`14/28/50/84` = `20/40/80/132`) | 7 |
+| TERM_WIDTH_TIMEOUT | 1 byte | `$7B` | Legacy width-prompt timeout byte (`00=forever`, `01-FF=seconds`; default `08`) | 8 |
+| RESERVED_GAP_A | 2 bytes | `$7C-$7D` | Reserved gap before terminal cursor scratch | |
+| TERM_CUR_COL | 1 byte | `$7E` | Current output column tracker (terminal wrap state) | |
 | TERM_WAIT_SECS | 1 byte | `$7F` | Width prompt countdown scratch | |
 | RST_HOOK | 3 bytes | `$80-$82` | Reset trampoline target | 9 |
 | NMI_HOOK | 3 bytes | `$83-$85` | NMI trampoline target | 11 |

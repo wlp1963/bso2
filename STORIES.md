@@ -34,6 +34,13 @@ Quoted guidance:
 "You explore broadly, then commit to concrete constraints. That balance is rare and useful."
 "Keep one active lane and one parking lot lane; everything not in active lane gets a dated TODO note and waits."
 
+## Parked TODOs
+
+- `2026-02-22`: Add explicit terminal channel model (`input` / `output` / `io`) with control-plane commands; keep output policy centralized in `WRITE_BYTE` and input policy centralized in `READ_BYTE` (or wrappers).
+- `2026-02-22`: Add POR entropy seeding experiment: sample/mix startup RAM noise (`$0200-$7EFF`) into `RNG_STATE` on true power-on only; keep external TRNG/crypto-chip integration as a future optional path.
+- `2026-02-22`: Add terse interrupted-command resume hints (advisory only, no implicit resume) for deterministic commands (`D/U/S/F/C`) after `RESET` + `W`.
+- `2026-02-22`: Add warmstart recovery thoughts: after accidental `RESET`, print concise "where to restart" hints (last safe command cursor and last `R START` entry) while preserving clean monitor entry and explicit operator restart.
+
 ## Author History (Draft)
 
 This project has roots in hands-on work from the late 1980s. Some dates and details are approximate and may be corrected over time.
@@ -137,6 +144,7 @@ That behavior is expected. If in doubt, verify with a direct boundary dump:
 `D B8AF B8B3`
 
 ## Personal Milestones
+- `2026-02-23`: IVI naming note recorded: `IVI`/`IVS`/`IVC`/`IVR`/`IVX` came from AI suggestion "Inspect Vector Indirection".
 - `2026-02-20T01:53:28-06:00 Prerelease R0M0V0I00 in commit 0ac9fd699e2758b7d57b87567d660ad1623eea73.`
 - `2026-02-18T14:40:00-06:00`; independently assembled 65C02 program loaded via S28 and executed on W65C02EDU atvalidation output: `HELLO, WORLD`.
 - `2026-02-18T18:50:20-06:00` - `L G S` / `LGS` implemented: S-record load-and-go now auto-executes, including fallback when S7/S8/S9 entry is zero.

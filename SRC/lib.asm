@@ -73,8 +73,10 @@ PRT_HEX:
                         LSR         A   ; LO
                         JSR         CVT_PRT_NIBBLE ; PRINT HI NIBBLE
                         PLA
+                        PRT_HEX_WORD_AX
                         AND         #%00001111 ; MASK LO NIBBLE
                         JSR         CVT_PRT_NIBBLE ; PRINT LO NIBBLE
+                        PLA
                         RTS             ; DONE
 
                         ENDMOD
@@ -259,8 +261,75 @@ UTIL_TO_UPPER:
 ; ZP USED: NONE
 ; ----------------------------------------------------------------------------
 WRITE_BYTE:
-                        JSR         WDC_WRITE_BYTE ; CALL ROM SEND
-                        JSR         PUT_LED ; SHOW ON LEDS
+                        PHA
+                        CMP         #$0D ; CR RESETS COLUMN TRACKING
+                        BEQ         ?WB_CR
+                        CMP         #$0A ; LF RESETS COLUMN TRACKING
+                        BEQ         ?WB_LF
+                        CMP         #$08 ; BS MOVES COLUMN BACK WHEN POSSIBLE
+                        BEQ         ?WB_BS
+                        CMP         #$20 ; TRACK ONLY PRINTABLE ASCII
+                        BCC         ?WB_RAW
+                        CMP         #$7F
+                        BCS         ?WB_RAW
+
+                        LDA         $7A ; TERM_COLS
+                        CMP         #$14 ; 20 COLUMNS
+                        BEQ         ?WB_CHK_WRAP
+                        CMP         #$28 ; 40 COLUMNS
+                        BEQ         ?WB_CHK_WRAP
+                        CMP         #$50 ; 80 COLUMNS
+                        BEQ         ?WB_CHK_WRAP
+                        CMP         #$84 ; 132 COLUMNS
+                        BEQ         ?WB_CHK_WRAP
+                        LDA         #$50 ; DEFAULT TO 80 COLUMNS
+                        STA         $7A ; TERM_COLS
+?WB_CHK_WRAP:
+                        LDX         $7E ; TERM_CUR_COL
+                        CPX         $7A ; TERM_COLS
+                        BCC         ?WB_SEND_PRINTABLE
+                        LDA         #$0D
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        LDA         #$0A
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        STZ         $7E ; TERM_CUR_COL
+?WB_SEND_PRINTABLE:
+                        PLA
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        INC         $7E ; TERM_CUR_COL
+                        RTS
+
+?WB_CR:
+                        PLA
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        STZ         $7E ; TERM_CUR_COL
+                        RTS
+
+?WB_LF:
+                        PLA
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        STZ         $7E ; TERM_CUR_COL
+                        RTS
+
+?WB_BS:
+                        PLA
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
+                        LDA         $7E ; TERM_CUR_COL
+                        BEQ         ?WB_DONE
+                        DEC         $7E ; TERM_CUR_COL
+?WB_DONE:
+                        RTS
+
+?WB_RAW:
+                        PLA
+                        JSR         WDC_WRITE_BYTE
+                        JSR         PUT_LED
                         RTS
 
                         ENDMOD

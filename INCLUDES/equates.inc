@@ -80,7 +80,7 @@ LED_DDR                 EQU         PIA_DDRA ; DIR REG PORT A
 
 ; --- INPUT BUFFER/PARSER CONFIG ---
 RBUF_SIZE               EQU         32  ; CONFIGURABLE INPUT RING BUFFER SIZE
-CMD_MAX_LEN             EQU         31  ; MAX COMMAND LENGTH (EXCLUDING NULL)
+CMD_MAX_LEN             EQU         64  ; MAX COMMAND LENGTH (EXCLUDING NULL)
 SREC_MODE_SKIP          EQU         $00
 SREC_MODE_DATA          EQU         $01
 SREC_MODE_TERM          EQU         $02
@@ -109,12 +109,15 @@ ZP_HEARTBEAT_ADDR       EQU         $7C
 ZP_HEARTBEAT_DIV_ADDR   EQU         $7D
 ZP_TERM_WAIT_LED_ADDR   EQU         $7E
 ZP_TERM_WAIT_SECS_ADDR  EQU         $7F
+ZP_TERM_CUR_COL_ADDR    EQU         ZP_TERM_WAIT_LED_ADDR
+                                        ; CURRENT OUTPUT COLUMN TRACKER
 ZP_GUARD_END_EXCL       EQU         $0090 ; KEEP USAGE <= $008F
 USER_ZP_BASE_ADDR       EQU         $90
 USER_ZP_END_ADDR        EQU         $FF
 HW_VEC_NMI_ADDR         EQU         $FFFA
 HW_VEC_RST_ADDR         EQU         $FFFC
 HW_VEC_IRQ_ADDR         EQU         $FFFE
+TERM_COLS_20            EQU         $14
 TERM_COLS_40            EQU         $28
 TERM_COLS_80            EQU         $50
 TERM_COLS_132           EQU         $84

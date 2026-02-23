@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- SPDX-License-Identifier: MIT -->
+  <!-- Copyright (c) 2026 95west.us -->
+  <!-- See LICENSE for full license text. -->
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bso2 Regression Testing 1 (Curated)</title>
+  <style>
+    :root {
+      --bg0: #f4f1ea;
+      --bg1: #fffdfa;
+      --ink: #1f2430;
+      --muted: #5a6475;
+      --line: #d6dbe5;
+      --panel: #ffffff;
+      --accent: #145c7a;
+      --accent2: #9b6b19;
+      --pass: #0f6b3a;
+      --warn: #8b5e00;
+      --fail: #9b2c2c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% -10%, #d9edf7 0%, transparent 40%),
+        radial-gradient(circle at 95% 0%, #fbe9c7 0%, transparent 38%),
+        linear-gradient(180deg, var(--bg0) 0%, var(--bg1) 18%, var(--bg1) 100%);
+      font-family: "Cascadia Mono", "IBM Plex Mono", Consolas, "Courier New", monospace;
+      line-height: 1.45;
+    }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 44px;
+    }
+    .hero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 18px 18px 14px;
+      box-shadow: 0 8px 20px rgba(16, 40, 64, 0.07);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0.2px;
+    }
+    .subtitle {
+      margin: 0 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .meta {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .cards {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .card .k {
+      display: block;
+      font-size: 20px;
+      color: var(--accent);
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .card .v {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    h2 {
+      margin: 22px 0 10px;
+      font-size: 18px;
+      color: var(--accent);
+    }
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 14px;
+      color: var(--accent2);
+    }
+    p {
+      margin: 8px 0;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px 9px;
+      vertical-align: top;
+      font-size: 12px;
+      text-align: left;
+    }
+    th {
+      background: #f1f5fb;
+      font-size: 12px;
+    }
+    .status-pass { color: var(--pass); font-weight: 700; }
+    .status-warn { color: var(--warn); font-weight: 700; }
+    .status-fail { color: var(--fail); font-weight: 700; }
+    pre {
+      margin: 8px 0 0;
+      padding: 10px 12px;
+      background: #f8fafc;
+      border: 1px solid var(--line);
+      border-left: 4px solid #8ca7c7;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: pre;
+    }
+    code {
+      background: #edf2f8;
+      border: 1px solid #d9e2ef;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .note {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px dashed #d5aa62;
+      background: #fff7ea;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .footer {
+      margin-top: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    a { color: #0b5d82; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="hero">
+      <h1>bso2 Regression Testing 1</h1>
+      <p class="subtitle">Curated transcript: boot/reset behavior, memory tooling, debug stepping, loader flow, and vector hooks.</p>
+      <p class="meta">Source: <code>DOCS/transcripts/regression testing 1.txt</code> | Session window: 2026-02-22 20:18:56 to 20:50:23 | Curated on 2026-02-23</p>
+      <div class="cards">
+        <div class="card"><span class="k">8</span><span class="v">PuTTY segments</span></div>
+        <div class="card"><span class="k">14x</span><span class="v">quick help command (<code>-?</code>)</span></div>
+        <div class="card"><span class="k">4x</span><span class="v">vector chain checks (<code>-V</code>)</span></div>
+        <div class="card"><span class="k">2x</span><span class="v">long-line stress injections</span></div>
+        <div class="card"><span class="k">1x</span><span class="v">successful <code>LGS</code> autoload/run</span></div>
+      </div>
+    </header>
+
+    <h2>Regression Matrix</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 26%">Area</th>
+          <th style="width: 16%">Status</th>
+          <th style="width: 58%">Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Power-on clear and warm/monitor branches</td>
+          <td class="status-pass">PASS</td>
+          <td><code>RAM CLEARED</code>, <code>WARMSTART</code>, and <code>MONITORSTART</code> all observed under expected menu paths.</td>
+        </tr>
+        <tr>
+          <td>Low-RAM write protection and force prefix</td>
+          <td class="status-pass">PASS</td>
+          <td><code>PROTECTED RANGE ($0000-$0FFF). USE ! TO FORCE</code> shown; forced variants then proceed.</td>
+        </tr>
+        <tr>
+          <td>Help surface and usage validation</td>
+          <td class="status-pass">PASS</td>
+          <td>Scoped help pages (<code>H P</code>, <code>H M</code>, <code>H S</code>) render; malformed forms return usage lines.</td>
+        </tr>
+        <tr>
+          <td>Terminal width + clear-memory confirmation</td>
+          <td class="status-pass">PASS</td>
+          <td><code>TERM COLS=40</code>, <code>TERM COLS=80</code>, and <code>Z</code> confirmation with <code>RAM NOT CLEARED</code>.</td>
+        </tr>
+        <tr>
+          <td>Memory operations: modify/fill/copy/search</td>
+          <td class="status-pass">PASS</td>
+          <td>Observed <code>M</code>, <code>F</code>, <code>C</code>, and both <code>S C</code>/<code>S B</code> with consistent dump evidence.</td>
+        </tr>
+        <tr>
+          <td>Tiny assembler + disassembly + stepping</td>
+          <td class="status-pass">PASS</td>
+          <td><code>A</code> accepted corrected forms; <code>U</code> and <code>R/N</code> produced coherent BRK context transitions.</td>
+        </tr>
+        <tr>
+          <td>Oversized input / control-flow resilience</td>
+          <td class="status-warn">PASS (No Crash)</td>
+          <td>Two extreme <code>-RAAAAA...</code> sequences observed; monitor remained responsive and continued command processing.</td>
+        </tr>
+        <tr>
+          <td>S-record load and autostart</td>
+          <td class="status-pass">PASS</td>
+          <td><code>L S LOAD COMPLETE</code> followed by program output <code>HELLO, WORLD</code>.</td>
+        </tr>
+        <tr>
+          <td>NMI hook patch/restore via vector chain</td>
+          <td class="status-pass">PASS</td>
+          <td><code>V</code> showed NMI target move to <code>1000</code> then restored back to <code>AD20</code>.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Curated Excerpts</h2>
+
+    <h3>1) Boot flow, warm path, monitor path, clear confirmation</h3>
+    <pre>POWER ON
+C/M &gt;C
+RAM CLEARED
+...
+RESET TRIGGERED
+C/W/M
+ &lt;W
+WARMSTART
+...
+RESET TRIGGERED
+C/W/M
+ &lt;M
+MONITORSTART
+...
+CLEAR MEMORY? (Y/N)N
+RAM NOT CLEARED
+...
+CLEAR MEMORY? (Y/N)Y
+RAM CLEARED</pre>
+
+    <h3>2) Protection and force-prefix behavior</h3>
+    <pre>-C F800 F80F 800
+PROTECTED RANGE ($0000-$0FFF). USE ! TO FORCE
+-!CF800 F80F 800
+...
+-M 800 12 34
+PROTECTED RANGE ($0000-$0FFF). USE ! TO FORCE
+-!M800 12 34
+...
+-M78
+PROTECTED RANGE ($0000-$0FFF). USE ! TO FORCE
+-!M78
+0078: 01 00</pre>
+
+    <h3>3) Help and usage checks</h3>
+    <pre>-H P
+HELP: PROTECTION
+  F/M/C/A/N/L      PROTECT $0000-$0FFF BY DEFAULT
+  !&lt;CMD&gt; ...       FORCE-ENABLE LOW-RAM ACCESS
+...
+-H M
+HELP: MEMORY/TOOLS
+...
+-H S
+HELP: STEERING
+...
+-H ALL
+USAGE: H [A|P|M|S|-|+]  OR  -H / +H</pre>
+
+    <h3>4) Game prompt latch + interactive behavior</h3>
+    <pre>-!M78
+0078: 01 00
+...
+-G
+I AM THINKING OF A NUMBER (1-10)
+? 4
+CORRECT
+...
+? 3
+TOO LOW
+? 9
+TOO LOW
+? 0 10
+CORRECT
+...
+-!M78 01
+WANT TO PLAY A GAME (@$78)?
+-!M78 00</pre>
+
+    <h3>5) Memory tools: fill, copy, search, and validation by dump</h3>
+    <pre>-F !F800 7EFF 55A  AA CC
+-D 800 80F
+0800: 55 AA CC 55 AA CC 55 AA | CC 55 AA CC 55 AA CC 55  |U..U..U.|.U..U..U|
+...
+-C !C 0 FF 800
+-D 800
+0800: 60 04 27 01 DE F7 9F BF ...
+...
+-S C 0 FFFF ABCDEF
+... hits found including user-memory region ...
+-S B 0 FFFF 41 42
+... byte-pattern hits reported ...</pre>
+
+    <h3>6) Tiny assembler, disassembly, run/step, register override</h3>
+    <pre>-A1000
+A 1000: LDDA #     DA #01
+...
+USAGE: A START [MNEMONIC OPERANDS]
+...
+-U 1000 1041
+1000: LDA #$01
+...
+103E: WAI
+103F: BRA $1000
+...
+-R1000
+CURR: 1006: BRK #$00    NEXT: 1008: DEX
+STATE:[BRK] 00 PC:1008 A:01 X:7F Y:FF ...
+-N
+CURR: 1009: INY    NEXT: 100B: INY
+...
+-RA=42
+CURR: 100C: BRK #$01    NEXT: 100E: LDA #$41
+STATE:[BRK] 01 PC:100E A:42 ...</pre>
+
+    <h3>7) Stress input and recovery</h3>
+    <pre>-RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+[... very long injected line block omitted in curated view ...]
+[NMI] PC:F9D9 A:01 X:10 Y:02 P:E4 [NV-bdIzc] S:F4
+-R 1000
+R CTX ACTIVE, R [A/X/Y=] or !R START
+-!R1000
+CURR: 1006: BRK #$00    NEXT: 1008: DEX</pre>
+
+    <h3>8) Loader path and vector-chain patch/restore verification</h3>
+    <pre>-LGS
+L S READY - SEND S-RECORDS (ABORT WITH SX)
+L S LOAD COMPLETE
+HELLO, WORLD
+...
+-V
+NMI: FFFA &gt; 8007 &gt; [0083] &gt; AD20
+...
+-!M83
+0083: 4C
+0084: 20 00
+0085: AD 10
+...
+-V
+NMI: FFFA &gt; 8007 &gt; [0083] &gt; 1000
+...
+-!M83 4C 20 AD
+-V
+NMI: FFFA &gt; 8007 &gt; [0083] &gt; AD20</pre>
+
+    <div class="note">
+      This is intentionally curated. The raw transcript contains very large stress-input blocks (thousands of <code>A</code> characters) that are collapsed here for readability.
+      Use the original file for byte-accurate replay: <a href="./regression%20testing%201.txt"><code>regression testing 1.txt</code></a>.
+    </div>
+
+    <p class="footer">No source content was rewritten; excerpts are selected directly from the original log and compacted for presentation.</p>
+  </main>
+</body>
+</html>

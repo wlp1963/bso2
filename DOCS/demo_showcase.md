@@ -2,7 +2,7 @@
 
 Source: `DOCS/transcripts/bso2-demo.txt`
 
-Note: this is a historical capture. Current monitor help/command lists may differ (for example, `T` clear-screen and include-model updates via `EQUATES.INC`).
+Note: this is a historical capture. Current monitor behavior may differ (for example: `T` now supports `C|20|40|80|132`, protected range is `$0000-$0FFF`, command-mode `W` is removed, game prompt text includes `(@$78)`, and `R START` in active context now hints `R CTX ACTIVE, R [A/X/Y=] or !R START`).
 
 Related focused search transcript:
 - Clean: [bso2-s-demo.txt](./transcripts/bso2-s-demo.txt)

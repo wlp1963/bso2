@@ -5,25 +5,25 @@
 It provides monitor commands, memory inspection/edit tools, mini-assembly/disassembly flow, debug/resume flow, and vector/IRQ sub-dispatch control for a 65C02-based system.
 
 Demo first: [DOCS/demo_showcase.md](DOCS/demo_showcase.md)  
-Current release marker: `R0M0V1I00`
+Current release marker: `R0M0V2I01` (`I` = `INTERNAL`)
 
 ## Features
 
 - Target CPU: `W65C02` (`CHIP 65C02`)
 - Table-driven command dispatcher and ring-buffer parser
-- C/W/M Prompt, Coldstart, Warmstart, Monitor
+- Startup prompts: reset-cookie `C/W/M`, power-on `C/M`; `W` enters warm-recovery monitor (terse restart hints), `M` enters clean monitor
 - Commands:
   -  `?`     Short Help
   -  `H`     Long Help
   -  `Z`     Zero Memory
-  -  `T`     Terminal
+  -  `T`     Terminal (`T`, `T C`, `T 20|40|80|132`)
   -  `D`     Dump Memory
   -  `U`     Unassemble
   -  `A`     Assemble
-  -  `X`     Execute
+  -  `X`     Reserved
   -  `G`     Game
   -  `I`     Info/Inspect 
-  -  `R`     Restart (in DEBUG)
+  -  `R`     Run (`R addr`) or Resume (in DEBUG); use `!R addr` to force-run when context is active
   -  `N`     Next (in DEBUG)
   -  `M`     Modify Memory, bulk and Interactive
   -  `F`     Fill Memory
@@ -35,6 +35,8 @@ Current release marker: `R0M0V1I00`
 - S28 Support
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
 - BRK debug context output with `CURR` / `NEXT` / `STATE` lines
+- Default runtime posture at boot: `I T0 1` (Timer1 free-run ON) and `I I 1` (CPU IRQ enabled)
+- EDU heartbeat timing: T0 base `122.0703125 Hz` (`8.192 ms`), LED overlay toggle `0.476837158 Hz` (~`2.097 s`/edge), full blink cycle `0.238418579 Hz` (~`4.194 s`)
 
 ## Quick Start
 
@@ -70,7 +72,9 @@ PuTTY note: disable `Auto wrap mode initially on` for clean monitor output align
 - Command reference (PDF): `DOCS/reference/monitor-usage.pdf`
 - Zero-page map (canonical): `DOCS/reference/zero-page-usage.md`
 - Zero-page map (PDF): `DOCS/reference/zero-page-usage.pdf`
+- Warmstart resume test plan: `DOCS/reference/warmstart-test-plan.md`
 - Demo walkthrough: `DOCS/demo_showcase.md`
+- Milestone `R0M0V2I01`: `DOCS/milestones/R0M0V2I01.md`
 - Hello World transcript: `DOCS/transcripts/hello-world.txt`
 
 ## Repository Layout

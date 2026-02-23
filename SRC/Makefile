@@ -11,7 +11,7 @@ modules:	lib.asm ../INCLUDES/equates.inc ../INCLUDES/macros.inc
 			del /f lib.obj
 
 
-bso2:	bso2.asm ../INCLUDES/equates.inc ../INCLUDES/macros.inc
+bso2:	bso2.asm ../INCLUDES/equates.inc ../INCLUDES/macros.inc lib.lib
 	WDC02AS -G -i ../INCLUDES/ -l -s bso2.asm
 	WDCLN -G -sz -t -HZ -PFF -J -C8000 -O bso2.bin  bso2.obj -L lib
 #	del /f *.obj
