@@ -3209,6 +3209,10 @@ CMD_DO_LOAD_SREC_GO:
                         STA         REC_RUN_ADDR+1
                         LDA         #$01
                         STA         REC_RUN_VALID
+                        PRT_CSTRING MSG_LGS_GO
+                        LDA         PTR_LEG+1
+                        LDX         PTR_LEG
+                        JSR         PRT_HEX_WORD_AX
                         LDA         #SYSF_GO_FLAG_M
                         TSB         SYS_FLAGS
                         LDA         PTR_LEG
@@ -3588,6 +3592,17 @@ CMD_DO_LOAD_SREC:
                         JMP         ?LS_REC_LOOP
 ?LS_DONE:
                         PRT_CSTRING MSG_LS_DONE
+                        LDA         SREC_FIRST_VALID
+                        BEQ         ?LS_DONE_SKIP_FIRST
+                        PRT_CSTRING MSG_LS_FIRST
+                        LDA         SREC_FIRST_ADDR+1
+                        LDX         SREC_FIRST_ADDR
+                        JSR         PRT_HEX_WORD_AX
+?LS_DONE_SKIP_FIRST:
+                        PRT_CSTRING MSG_LS_GO
+                        LDA         PTR_TEMP+1
+                        LDX         PTR_TEMP
+                        JSR         PRT_HEX_WORD_AX
                         CLC
                         RTS
 
@@ -8404,6 +8419,8 @@ MSG_LS_READY:           DB          $0D, $0A
                         DB          "L S READY - SEND S-RECORDS (ABORT WITH SX)"
                         DB          0
 MSG_LS_DONE:            DB          $0D, $0A, "L S LOAD COMPLETE", 0
+MSG_LS_FIRST:           DB          $0D, $0A, "L S FIRST @ $", 0
+MSG_LS_GO:              DB          $0D, $0A, "L S GO @ $", 0
 MSG_LS_ABORT:           DB          $0D, $0A, "L S ABORTED", 0
 MSG_LS_PARSE_ERR:       DB          $0D, $0A, "L S RECORD FORMAT ERROR", 0
 MSG_LS_CHKSUM_ERR:      DB          $0D, $0A, "L S CHECKSUM ERROR", 0
@@ -8411,6 +8428,7 @@ MSG_LS_TYPE_ERR:        DB          $0D, $0A, "L S UNSUPPORTED RECORD TYPE", 0
 MSG_LS_ADDR_ERR:        DB          $0D, $0A, "L S ADDRESS OUT OF 16-BIT RANGE", 0
 MSG_LGS_NO_ENTRY:       DB          $0D, $0A
                         DB          "L G S NO ENTRY ADDRESS; USE X START", 0
+MSG_LGS_GO:             DB          $0D, $0A, "L G S GO @ $", 0
 MSG_VERIFY_ERR_SUFFIX:  DB          " VERIFY FAILED AT ADDR ", 0
 MSG_Q_WAIT:             DB          $0D, $0A, "Q HALT - RESET/NMI TO RESUME"
                         DB          0

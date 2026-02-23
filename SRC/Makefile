@@ -41,3 +41,12 @@ realclean:
 	
 term:
 	python -m serial.tools.miniterm COM3 1042200
+
+mastermind: modules
+	wdc02as -i ../INCLUDES -g -l -s mastermind.asm
+	WDCLN -g -sz -t -HM28 -PFF -J -Q mastermind -Llib -C1000
+
+life: modules
+	wdc02as -i ../INCLUDES -g -l -s life.asm
+	WDCLN -g -sz -t -HM28 -PFF -J -Q life -Llib -C5000
+
