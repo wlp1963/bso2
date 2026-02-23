@@ -1,6 +1,14 @@
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2026 95west.us
+; See LICENSE for full license text.
+;
 ; MASTERMIND.ASM
 ; Userland text game for W65C02EDU.
 ; Guess a 4-hex-digit code; feedback is Exact and Near counts.
+;
+; Provenance:
+; - Project-original implementation for this repository.
+; - No third-party gameplay source text was copied into this file.
                         CHIP       65C02
                         PL         60
                         PW         132

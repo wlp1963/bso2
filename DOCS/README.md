@@ -9,6 +9,8 @@ Use this file as the entry point for project documentation.
 - Zero-page map (Markdown): `DOCS/reference/zero-page-usage.md`
 - Zero-page map (PDF): `DOCS/reference/zero-page-usage.pdf`
 - Warmstart resume test plan: `DOCS/reference/warmstart-test-plan.md`
+- Mastermind userland reference: `DOCS/reference/mastermind.md`
+- Life userland reference: `DOCS/reference/life.md`
 
 ## Walkthroughs and Specs
 

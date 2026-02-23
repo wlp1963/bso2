@@ -76,11 +76,15 @@ PuTTY note: disable `Auto wrap mode initially on` for clean monitor output align
 - Demo walkthrough: `DOCS/demo_showcase.md`
 - Milestone `R0M0V2I01`: `DOCS/milestones/R0M0V2I01.md`
 - Hello World transcript: `DOCS/transcripts/hello-world.txt`
+- Mastermind userland reference: `DOCS/reference/mastermind.md`
+- Life userland reference: `DOCS/reference/life.md`
 
 ## Repository Layout
 
 - `SRC/bso2.asm`: main monitor source
 - `SRC/lib.asm`: shared monitor routines
+- `SRC/mastermind.asm`: standalone userland Mastermind game (`$1000`)
+- `SRC/life.asm`: standalone userland Life game (`$5000`)
 - `INCLUDES/equates.inc`: hardware/address equates and constants
 - `INCLUDES/macros.inc`: assembler macros
 - `SRC/Makefile`: build/upload rules
