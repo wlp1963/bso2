@@ -31,8 +31,8 @@ All notable changes to this project will be documented in this file.
 - `T` command now owns terminal control: clear (`T`/`T C`) plus width set (`20/40/80/132`).
 - Output wrapping now enforces configured `TERM_COLS` globally via `WRITE_BYTE`.
 - Standardized project release marker format to `R#M#V#I##`; bumped current marker to `R0M0V1I01` (`I` = `INTERNAL`).
-- Changed startup defaults to `I T0 1` and `I I 1`:
-- Timer1 free-run heartbeat is now enabled by default at boot.
+- Changed startup defaults to `I T0 F` and `I I 1`:
+- Timer1 free-run heartbeat is now enabled by default at boot (slow double-pulse mode).
 - CPU IRQ handling is now enabled by default at boot.
 - `I T0` and `I I` now report current state when `0|1` is omitted.
 - Separated include files out of `SRC/` into `INCLUDES/` and updated assembler include paths for monitor and demo builds.
@@ -63,7 +63,7 @@ All notable changes to this project will be documented in this file.
 - Updated warmstart test plan to use reset startup warm path (`C/W/M -> W`) instead of removed command-mode `W`.
 - Updated runtime banner and documentation banner/transcript references from `v0 . 9` to `R0M0V0I00`.
 - Documented `I T0 [0|1]` and `I I [0|1]` query/toggle behavior in `DOCS/reference/monitor-usage.html`.
-- Documented default startup posture (`I T0 1`, `I I 1`) and heartbeat timing math:
+- Documented default startup posture (`I T0 F`, `I I 1`) and heartbeat timing math:
 - T0 base rate `122.0703125 Hz` (`8.192 ms` period).
 - LED overlay toggle rate `0.476837158 Hz` (~`2.097 s` per edge).
 - Full LED blink cycle `0.238418579 Hz` (~`4.194 s` period).

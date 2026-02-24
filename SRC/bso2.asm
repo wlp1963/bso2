@@ -196,8 +196,10 @@ SREC_LOAD_MIN:          DS          2   ; LOWEST DATA BYTE ADDR WRITTEN BY L S
 SREC_LOAD_MAX:          DS          2   ; HIGHEST DATA BYTE ADDR WRITTEN BY L S
 SREC_LOAD_COUNT:        DS          2   ; TOTAL DATA BYTES WRITTEN BY L S
 SREC_LOAD_VALID:        DS          1   ; 1 IF ANY DATA BYTE WAS WRITTEN
-HEARTBEAT_MODE:         DS          1   ; I T0 MODE: '1'=ON, '7'=FAST HB, 'F'=SLOW HB, $80=WIG-WAG
+HEARTBEAT_MODE:         DS          1   ; I T0 MODE: '1'=ON, '7'=FAST HB, 'F'=SLOW HB, '8'=WIG-WAG
 MENU_MODE:              DS          1   ; I M 1=MENU ON, I M 0=MENU OFF
+ACIA_TX_DELAY:          DS          1   ; ACIA TX INTER-BYTE THROTTLE (OUTER LOOP)
+ACIA_CTRL_CFG:          DS          1   ; ACIA CONTROL REGISTER PROFILE
 ROM_CSUM32:             DS          4   ; 32-BIT CHECKSUM ACCUMULATOR (B0..B3)
 WARM_RESUME_RESTORE_PENDING:
                         DS          1   ; 1 => RESET-WARM SHOULD RESTORE HOOK SNAPSHOT
@@ -250,7 +252,7 @@ SYS_RST:
                         JSR         INIT_SERIAL
                                         ; SERIAL READY FOR BOOT MESSAGES
                         JSR         INIT_LED ; LED PORT READY FOR WRITE_BYTE
-                        LDA         #'1' ; DEFAULT I T0 1 (NORMAL ON)
+                        LDA         #'F' ; DEFAULT I T0 F (SLOW DOUBLE-PULSE)
                         STA         HEARTBEAT_MODE
                         JSR         VIA_T1_START_FREE
                                         ; DEFAULT: T0 HEARTBEAT ON (~122.07HZ)
@@ -262,6 +264,10 @@ SYS_RST:
                         STZ         HEARTBEAT_PHASE
                         STZ         HEARTBEAT_DIV
                         STZ         MENU_MODE
+                        LDA         #$10 ; DEFAULT ACIA CTRL = 115200 8N1
+                        STA         ACIA_CTRL_CFG
+                        LDA         #$01 ; DEFAULT ACIA TX THROTTLE (MIN STABLE)
+                        STA         ACIA_TX_DELAY
                         STZ         READ_BYTE_COUNT
                         STZ         READ_BYTE_COUNT+1
                         STZ         READ_BYTE_COUNT+2
@@ -479,6 +485,8 @@ MEMCLR_CORE:
                         JSR         MEM_CLEAR_RAM_LOOP
                         JSR         RESET_COOKIE_SET
                         jsr         MAIN_INIT
+                        LDA         #$01 ; GUARANTEE MIN STABLE ACIA DELAY AFTER CLEAR
+                        STA         ACIA_TX_DELAY
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -555,9 +563,56 @@ MEM_CLEAR:
 PRINT_BOOT_BANNER:
                         PUSH        A, X, Y
                         PRT_CSTRING BSO2_INIT
+                        JSR         ACIA_PRINT_BOOT_HEADER
                         JSR         PRINT_BANNER_SIZE_LINE
                         JSR         PRINT_BANNER_CSUM_LINE
                         PULL        Y, X, A
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_PRINT_BOOT_HEADER
+; DESCRIPTION: EMITS THE STATIC BSO2 HEADER ON ACIA SERIAL
+; INPUT: NONE
+; OUTPUT: BSO2_INIT WRITTEN TO ACIA WHEN TX READY
+; FLAGS: UNDEFINED
+; ZP USED: STR_PTR
+; ----------------------------------------------------------------------------
+ACIA_PRINT_BOOT_HEADER:
+                        PUSH        A, X, Y
+                        JSR         ACIA_INIT_SERIAL
+                        LDA         #<BSO2_INIT
+                        STA         STR_PTR
+                        LDA         #>BSO2_INIT
+                        STA         STR_PTR+1
+                        JSR         ACIA_PRT_CSTRING
+                                        ; ON TIMEOUT, ABORT SILENTLY
+                        PULL        Y, X, A
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_PRT_CSTRING
+; DESCRIPTION: WRITES NUL-TERMINATED STRING AT STR_PTR TO ACIA TX
+; INPUT: STR_PTR = SOURCE POINTER
+; OUTPUT: STRING WRITTEN UNTIL NUL OR TX TIMEOUT
+; FLAGS: CARRY CLEAR IF FULL STRING WRITTEN, SET ON TX TIMEOUT
+; ZP USED: STR_PTR
+; ----------------------------------------------------------------------------
+ACIA_PRT_CSTRING:
+?APCS_LOOP:
+                        LDY         #$00
+                        LDA         (STR_PTR),Y
+                        BEQ         ?APCS_DONE
+                        JSR         ACIA_WRITE_BYTE
+                        BCS         ?APCS_TIMEOUT
+                        INC         STR_PTR
+                        BNE         ?APCS_LOOP
+                        INC         STR_PTR+1
+                        BRA         ?APCS_LOOP
+?APCS_DONE:
+                        CLC
+                        RTS
+?APCS_TIMEOUT:
+                        SEC
                         RTS
 
 ; ----------------------------------------------------------------------------
@@ -972,6 +1027,235 @@ PRT_HEX_TRIM_A:
 INIT_SERIAL:
                         JSR         WDC_INIT_SERIAL ; CALL ROM
                         RTS             ; DONE
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_PARSE_BAUD_TOKEN
+; DESCRIPTION: PARSES BAUD TOKEN AT CMD_LINE[X]
+; INPUT: X -> TOKEN START
+; OUTPUT: C=0 SUCCESS, A=ACIA_CONTROL PROFILE, X->TOKEN END CHAR
+;         C=1 INVALID TOKEN
+; TOKENS: 9600 | 19200 | 115200
+; ----------------------------------------------------------------------------
+ACIA_PARSE_BAUD_TOKEN:
+                        LDA         CMD_LINE,X
+                        CMP         #'9'
+                        BEQ         ?APBT_9600
+                        CMP         #'1'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+1,X
+                        CMP         #'9'
+                        BEQ         ?APBT_19200
+                        CMP         #'1'
+                        BNE         ?APBT_BAD
+                        ; 115200
+                        LDA         CMD_LINE+2,X
+                        CMP         #'5'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+3,X
+                        CMP         #'2'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+4,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+5,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        TXA
+                        CLC
+                        ADC         #$06
+                        TAX
+                        LDA         #$10 ; 115200 8N1 (RXC/16)
+                        CLC
+                        RTS
+?APBT_19200:
+                        LDA         CMD_LINE+2,X
+                        CMP         #'2'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+3,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+4,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        TXA
+                        CLC
+                        ADC         #$05
+                        TAX
+                        LDA         #$1F ; 19200 8N1
+                        CLC
+                        RTS
+?APBT_9600:
+                        LDA         CMD_LINE+1,X
+                        CMP         #'6'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+2,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        LDA         CMD_LINE+3,X
+                        CMP         #'0'
+                        BNE         ?APBT_BAD
+                        TXA
+                        CLC
+                        ADC         #$04
+                        TAX
+                        LDA         #$1E ; 9600 8N1
+                        CLC
+                        RTS
+?APBT_BAD:
+                        SEC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_PROGRAM_RESET
+; DESCRIPTION: ISSUES W65C51 PROGRAM RESET STROBE
+; INPUT: NONE
+; OUTPUT: ACIA PROGRAMMING STATE RESET
+; FLAGS: UNCHANGED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_PROGRAM_RESET:
+                        LDA         #$00 ; DATA VALUE IGNORED BY PROGRAM RESET
+                        STA         ACIA_STATUS
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_INIT_SERIAL
+; DESCRIPTION: INITIALIZES W65C51 ACIA USING ACIA_CTRL_CFG (POLLED)
+; INPUT: NONE
+; OUTPUT: ACIA READY
+; FLAGS: UNCHANGED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_INIT_SERIAL:
+                        JSR         ACIA_PROGRAM_RESET
+                        LDA         ACIA_CTRL_CFG
+                        STA         ACIA_CONTROL
+                        LDA         #$0B ; NO PARITY, ECHO OFF, IRQS OFF
+                        STA         ACIA_COMMAND
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_CHECK_BYTE
+; DESCRIPTION: CHECKS ACIA RX STATUS (POLLED)
+; INPUT: NONE
+; OUTPUT: ACC = ACIA STATUS REGISTER
+; FLAGS: CARRY SET IF RX BUFFER EMPTY
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_CHECK_BYTE:
+                        LDA         ACIA_STATUS
+                        PHA             ; KEEP RAW STATUS IN A ON RETURN
+                        AND         #ACIA_ST_RDRF_M
+                        BNE         ?ACB_HAVE
+                        PLA
+                        SEC
+                        RTS
+?ACB_HAVE:
+                        PLA
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_READ_BYTE
+; DESCRIPTION: READS ONE BYTE FROM ACIA (BLOCKING, POLLED)
+; INPUT: NONE
+; OUTPUT: ACC = BYTE RECEIVED
+; FLAGS: UNDEFINED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_READ_BYTE:
+?ARB_WAIT:
+                        JSR         ACIA_CHECK_BYTE
+                        BCS         ?ARB_WAIT
+                        LDA         ACIA_DATA
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_WRITE_BYTE
+; DESCRIPTION: WRITES ONE BYTE TO ACIA (BOUNDED POLL)
+; INPUT: ACC = BYTE TO TRANSMIT
+; OUTPUT: BYTE WRITTEN TO ACIA TX DATA REGISTER
+; FLAGS: CARRY CLEAR IF WRITE SUCCEEDED, SET IF TX NOT READY (TIMEOUT)
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_WRITE_BYTE:
+                        PHA
+                        LDY         #$40 ; POLL BUDGET OUTER LOOP
+?AWB_OUTER:
+                        LDX         #$00 ; 256 POLLS PER OUTER ITERATION
+?AWB_WAIT:
+                        LDA         ACIA_STATUS
+                        AND         #ACIA_ST_TDRE_M
+                        BNE         ?AWB_READY
+                        DEX
+                        BNE         ?AWB_WAIT
+                        DEY
+                        BNE         ?AWB_OUTER
+                        PLA
+                        SEC             ; TIMEOUT (LIKELY CTS/CLOCK/LEVEL ISSUE)
+                        RTS
+?AWB_READY:
+                        PLA
+                        STA         ACIA_DATA
+                        JSR         ACIA_TX_THROTTLE
+                                        ; W65C51 TX-MASK BUG WORKAROUND:
+                                        ; PACE WRITES SO TDRE/TX HANDSHAKE CAN
+                                        ; SETTLE BETWEEN BYTES.
+                        CLC
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_TX_THROTTLE
+; DESCRIPTION: INSERTS A SMALL INTER-BYTE TX DELAY FOR W65C51 WORKAROUND
+; INPUT: NONE
+; OUTPUT: NONE
+; FLAGS: UNDEFINED
+; ZP USED: NONE
+; ----------------------------------------------------------------------------
+ACIA_TX_THROTTLE:
+                        LDA         ACIA_TX_DELAY
+                        BEQ         ?ATT_DONE ; 00 = NO EXTRA DELAY
+                        TAY
+?ATT_OUTER:
+                        LDX         #$FF
+?ATT_INNER:
+                        DEX
+                        BNE         ?ATT_INNER
+                        DEY
+                        BNE         ?ATT_OUTER
+?ATT_DONE:
+                        RTS
+
+; ----------------------------------------------------------------------------
+; SUBROUTINE: ACIA_WRITE_TEST_BYTES
+; DESCRIPTION: EMITS A SHORT, VISIBLE ACIA TEST PATTERN
+; INPUT: NONE
+; OUTPUT: "UU ACIA TEST\r\n" OVER ACIA TX
+; FLAGS: CARRY CLEAR IF FULL PAYLOAD WAS WRITTEN, SET ON TX TIMEOUT
+; ZP USED: STR_PTR
+; ----------------------------------------------------------------------------
+ACIA_WRITE_TEST_BYTES:
+                        LDA         #<STR_IOA_TEST_PAYLOAD
+                        STA         STR_PTR
+                        LDA         #>STR_IOA_TEST_PAYLOAD
+                        STA         STR_PTR+1
+?AWTB_LOOP:
+                        LDY         #$00
+                        LDA         (STR_PTR),Y
+                        BEQ         ?AWTB_DONE
+                        JSR         ACIA_WRITE_BYTE
+                        BCS         ?AWTB_TIMEOUT
+                        INC         STR_PTR
+                        BNE         ?AWTB_LOOP
+                        INC         STR_PTR+1
+                        BRA         ?AWTB_LOOP
+?AWTB_DONE:
+                        CLC
+                        RTS
+?AWTB_TIMEOUT:
+                        SEC
+                        RTS
+STR_IOA_TEST_PAYLOAD:   DB          "UU ACIA TEST", $0D, $0A, 0
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: READ_BYTE
@@ -2704,8 +2988,8 @@ CMD_DO_GAME:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_INFO
 ; DESCRIPTION: INFO NAMESPACE ROOT
-; USAGE: I   OR   I A   OR   I X   OR   I T0 [0|1|7|F|80]   OR   I I [0|1]   OR
-;        I M [0|1]   OR
+; USAGE: I   OR   I A   OR   I X   OR   I T0 [0|1|7|F|8]   OR   I I [0|1]   OR
+;        I M [0|1]   OR   I O A [I|R|T|B [9600|19200|115200]|D [HH]]   OR
 ;        I C <RPN TOKENS>   OR
 ;        IC <RPN TOKENS>
 ; ----------------------------------------------------------------------------
@@ -2730,6 +3014,10 @@ CMD_DO_INFO:
                         BNE         ?CID_CHK_C
                         JMP         ?CID_MENU_MODE
 ?CID_CHK_C:
+                        CMP         #'O'
+                        BNE         ?CID_CHK_C2
+                        JMP         ?CID_IO
+?CID_CHK_C2:
                         CMP         #'C'
                         BNE         ?CID_USAGE
                         JMP         ?CID_CALC
@@ -2781,6 +3069,139 @@ CMD_DO_INFO:
                         LDA         PTR_LEG
                         JSR         PRT_HEX
                         RTS
+?CID_IO:
+                        INX             ; PARSE AFTER 'O'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        CMP         #'A'
+                        BNE         ?CID_IO_USAGE
+                        INX             ; PARSE AFTER 'A'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CID_IOA_STATUS
+                        CMP         #'I'
+                        BNE         ?CID_IOA_CHK_R
+                        JMP         ?CID_IOA_INIT
+?CID_IOA_CHK_R:
+                        CMP         #'R'
+                        BNE         ?CID_IOA_CHK_T
+                        JMP         ?CID_IOA_RESET
+?CID_IOA_CHK_T:
+                        CMP         #'T'
+                        BNE         ?CID_IOA_CHK_B
+                        JMP         ?CID_IOA_TEST
+?CID_IOA_CHK_B:
+                        CMP         #'B'
+                        BNE         ?CID_IOA_CHK_D
+                        JMP         ?CID_IOA_BAUD
+?CID_IOA_CHK_D:
+                        CMP         #'D'
+                        BNE         ?CID_IO_USAGE
+                        JMP         ?CID_IOA_DELAY
+?CID_IO_USAGE:
+                        PRT_CSTRING MSG_IO_USAGE
+                        RTS
+?CID_IOA_STATUS:
+                        PRT_CSTRING MSG_IOA_BASE
+                        LDA         #>ACIA
+                        LDX         #<ACIA
+                        JSR         PRT_HEX_WORD_AX
+
+                        PRT_CSTRING MSG_IOA_STATUS
+                        LDA         ACIA_STATUS
+                        JSR         PRT_HEX
+
+                        PRT_CSTRING MSG_IOA_COMMAND
+                        LDA         ACIA_COMMAND
+                        JSR         PRT_HEX
+
+                        PRT_CSTRING MSG_IOA_CONTROL
+                        LDA         ACIA_CONTROL
+                        JSR         PRT_HEX
+                        PRT_CSTRING MSG_IOA_DELAY
+                        LDA         ACIA_TX_DELAY
+                        JSR         PRT_HEX
+                        RTS
+?CID_IOA_RESET:
+                        JSR         ACIA_PROGRAM_RESET
+                        PRT_CSTRING MSG_IOA_RESET
+                        JMP         ?CID_IOA_STATUS
+?CID_IOA_INIT:
+                        JSR         ACIA_INIT_SERIAL
+                        PRT_CSTRING MSG_IOA_INIT
+                        JMP         ?CID_IOA_STATUS
+?CID_IOA_BAUD:
+                        INX             ; PARSE OPTIONAL RATE TOKEN AFTER 'B'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CID_IOA_BAUD_SHOW
+                        JSR         ACIA_PARSE_BAUD_TOKEN
+                        BCS         ?CID_IOA_BAUD_BAD
+                        STA         BUF_TMP
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CID_IOA_BAUD_BAD
+                        LDA         BUF_TMP
+                        STA         ACIA_CTRL_CFG
+                        JSR         ACIA_INIT_SERIAL
+                        BRA         ?CID_IOA_BAUD_SHOW
+?CID_IOA_BAUD_BAD:
+                        JMP         ?CID_IO_USAGE
+?CID_IOA_BAUD_SHOW:
+                        PRT_CSTRING MSG_IOA_BAUD
+                        LDA         ACIA_CTRL_CFG
+                        CMP         #$1E
+                        BEQ         ?CID_IOA_BAUD_MSG_9600
+                        CMP         #$1F
+                        BEQ         ?CID_IOA_BAUD_MSG_19200
+                        CMP         #$10
+                        BEQ         ?CID_IOA_BAUD_MSG_115200
+                        ; FALLBACK: UNKNOWN PROFILE, SHOW RAW CTRL BYTE
+                        PRT_CSTRING MSG_IOA_BAUD_RAW
+                        LDA         ACIA_CTRL_CFG
+                        JSR         PRT_HEX
+                        RTS
+?CID_IOA_BAUD_MSG_9600:
+                        PRT_CSTRING MSG_IOA_BAUD_9600
+                        RTS
+?CID_IOA_BAUD_MSG_19200:
+                        PRT_CSTRING MSG_IOA_BAUD_19200
+                        RTS
+?CID_IOA_BAUD_MSG_115200:
+                        PRT_CSTRING MSG_IOA_BAUD_115200
+                        RTS
+?CID_IOA_DELAY:
+                        INX             ; PARSE OPTIONAL DELAY BYTE AFTER 'D'
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BEQ         ?CID_IOA_DELAY_SHOW
+                        JSR         CMD_PARSE_ADDR16_TOKEN
+                        CMP         #$00
+                        BNE         ?CID_IOA_DELAY_BAD
+                        LDA         CMD_PARSE_VAL+1 ; BYTE ONLY
+                        BNE         ?CID_IOA_DELAY_BAD
+                        LDA         CMD_PARSE_VAL
+                        STA         ACIA_TX_DELAY
+                        JSR         CMD_SKIP_SPACES
+                        LDA         CMD_LINE,X
+                        BNE         ?CID_IOA_DELAY_BAD
+                        BRA         ?CID_IOA_DELAY_SHOW
+?CID_IOA_DELAY_BAD:
+                        JMP         ?CID_IO_USAGE
+?CID_IOA_DELAY_SHOW:
+                        PRT_CSTRING MSG_IOA_DELAY
+                        LDA         ACIA_TX_DELAY
+                        JSR         PRT_HEX
+                        RTS
+?CID_IOA_TEST:
+                        JSR         ACIA_INIT_SERIAL
+                        JSR         ACIA_WRITE_TEST_BYTES
+                        BCS         ?CID_IOA_TEST_TIMEOUT
+                        PRT_CSTRING MSG_IOA_TEST
+                        JMP         ?CID_IOA_STATUS
+?CID_IOA_TEST_TIMEOUT:
+                        PRT_CSTRING MSG_IOA_TIMEOUT
+                        JMP         ?CID_IOA_STATUS
 ?CID_TIMER:
                         INX             ; PARSE AFTER 'T'
                         LDA         CMD_LINE,X
@@ -2803,15 +3224,12 @@ CMD_DO_INFO:
                         JMP         ?CID_TIMER_ON_7
 ?CID_TIMER_CHK_F:
                         CMP         #'F'
-                        BNE         ?CID_TIMER_CHK_80
+                        BNE         ?CID_TIMER_CHK_8
                         JMP         ?CID_TIMER_ON_F
-?CID_TIMER_CHK_80:
+?CID_TIMER_CHK_8:
                         CMP         #'8'
                         BNE         ?CID_TIMER_USAGE
-                        LDA         CMD_LINE+1,X
-                        CMP         #'0'
-                        BNE         ?CID_TIMER_USAGE
-                        JMP         ?CID_TIMER_ON_80
+                        JMP         ?CID_TIMER_ON_8
 ?CID_TIMER_USAGE:
                         PRT_CSTRING MSG_IT_USAGE
                         RTS
@@ -2827,8 +3245,8 @@ CMD_DO_INFO:
                         BEQ         ?CID_TIMER_MSG_7
                         CMP         #'F'
                         BEQ         ?CID_TIMER_MSG_F
-                        CMP         #$80
-                        BEQ         ?CID_TIMER_MSG_80
+                        CMP         #'8'
+                        BEQ         ?CID_TIMER_MSG_8
                         PRT_CSTRING MSG_IT_ON
                         RTS
 ?CID_TIMER_MSG_7:
@@ -2837,8 +3255,8 @@ CMD_DO_INFO:
 ?CID_TIMER_MSG_F:
                         PRT_CSTRING MSG_IT_F
                         RTS
-?CID_TIMER_MSG_80:
-                        PRT_CSTRING MSG_IT_80
+?CID_TIMER_MSG_8:
+                        PRT_CSTRING MSG_IT_8
                         RTS
 ?CID_TIMER_ON_NORMAL:
                         LDA         #'1'
@@ -2858,13 +3276,13 @@ CMD_DO_INFO:
                         JSR         VIA_T1_START_FREE
                         PRT_CSTRING MSG_IT_F
                         RTS
-?CID_TIMER_ON_80:
-                        LDA         #$80
+?CID_TIMER_ON_8:
+                        LDA         #'8'
                         STA         HEARTBEAT_MODE
                         JSR         VIA_T1_START_FREE
                         LDA         #$0F ; START GREEN HALF, THEN ALTERNATE
                         STA         HEARTBEAT_PHASE
-                        PRT_CSTRING MSG_IT_80
+                        PRT_CSTRING MSG_IT_8
                         RTS
 ?CID_TIMER_OFF:
                         JSR         VIA_T1_STOP
@@ -7669,14 +8087,14 @@ SYS_IRQ_HW_DISPATCH:
                         ; I T0 1: classic toggle each 256 ticks (~0.238 CPS full cycle)
                         ; I T0 7: heartbeat pattern (fast double pulse)
                         ; I T0 F: heartbeat pattern (slow double pulse)
-                        ; I T0 80: wig-wag PB0-3/PB4-7 at current T0 cadence
+                        ; I T0 8: wig-wag PB0-3/PB4-7 at current T0 cadence
                         LDA         HEARTBEAT_MODE
                         CMP         #'7'
                         BEQ         ?SIHD_MODE_7
                         CMP         #'F'
                         BEQ         ?SIHD_MODE_F
-                        CMP         #$80
-                        BEQ         ?SIHD_MODE_80
+                        CMP         #'8'
+                        BEQ         ?SIHD_MODE_8
                         ; DEFAULT MODE '1': TOGGLE ON DIV WRAP
                         LDA         HEARTBEAT_DIV
                         BNE         ?SIHD_HB_READY
@@ -7705,17 +8123,17 @@ SYS_IRQ_HW_DISPATCH:
                         CMP         #36
                         BCC         ?SIHD_SET_OFF
                         BRA         ?SIHD_SET_ON
-?SIHD_MODE_80:
+?SIHD_MODE_8:
                         ; TOGGLE NIBBLES ON DIV WRAP (SAME WRAP RATE AS MODE '1')
                         LDA         HEARTBEAT_DIV
                         BNE         ?SIHD_HB_READY
                         LDA         HEARTBEAT_PHASE
                         CMP         #$0F
-                        BEQ         ?SIHD_MODE_80_SET_F0
+                        BEQ         ?SIHD_MODE_8_SET_F0
                         LDA         #$0F
                         STA         HEARTBEAT_PHASE
                         BRA         ?SIHD_HB_READY
-?SIHD_MODE_80_SET_F0:
+?SIHD_MODE_8_SET_F0:
                         LDA         #$F0
                         STA         HEARTBEAT_PHASE
                         BRA         ?SIHD_HB_READY
@@ -7727,7 +8145,7 @@ SYS_IRQ_HW_DISPATCH:
                         STZ         HEARTBEAT_PHASE
 ?SIHD_HB_READY:
                         LDA         HEARTBEAT_MODE
-                        CMP         #$80
+                        CMP         #'8'
                         BNE         ?SIHD_HB_BLEND
                         LDA         HEARTBEAT_PHASE ; DIRECT WIG-WAG LED PATTERN
                         STA         LED_DATA
@@ -8601,6 +9019,10 @@ MAIN_INIT:
 
                         JSR         INIT_SERIAL ; SETUP UART
                         JSR         INIT_LED ; SETUP LED PORT
+                        LDA         #$10 ; RE-SEED DEFAULT ACIA CTRL (115200 8N1)
+                        STA         ACIA_CTRL_CFG
+                        LDA         #$01 ; RE-SEED MIN STABLE ACIA TX DELAY
+                        STA         ACIA_TX_DELAY
 
                         stz         BRK_FLAG
                         stz         STEP_ACTIVE
@@ -8777,7 +9199,7 @@ MSG_HELP_FULL_28:       DB          $0D, $0A
                         DB          "  G                GUESS NUMBER (1-10, 3 "
                         DB          "TRIES)", 0
 MSG_HELP_FULL_37:       DB          $0D, $0A
-                        DB          "  I / I A / I X / I T0 [0|1|7|F|80] / I I [0|1] / I M [0|1] / I C EXPR "
+                        DB          "  I / I A / I X / I T0 [0|1|7|F|8] / I I [0|1] / I M [0|1] / I O A [I|R|T|B [9600|19200|115200]|D [HH]] / I C EXPR "
                         DB          "INFO / EASTER EGG / RPN CALC "
                         DB          "(16-BIT HEX TOKENS)", 0
 MSG_HELP_FULL_12:       DB          $0D, $0A, $0D, $0A
@@ -8887,10 +9309,10 @@ MSG_I_ABOUT:            DB          $0D, $0A, "95west.us", 0
 MSG_IT_ON:              DB          $0D, $0A, "I T0 1 TIMER1 FREE-RUN: ON (~122.07HZ @8MHZ)", 0
 MSG_IT_7:               DB          $0D, $0A, "I T0 7 HEARTBEAT: FAST DOUBLE-PULSE", 0
 MSG_IT_F:               DB          $0D, $0A, "I T0 F HEARTBEAT: SLOW DOUBLE-PULSE", 0
-MSG_IT_80:              DB          $0D, $0A, "I T0 80 WIG-WAG: PB0-3/PB4-7 ALTERNATE", 0
+MSG_IT_8:               DB          $0D, $0A, "I T0 8 WIG-WAG: PB0-3/PB4-7 ALTERNATE", 0
 MSG_IT_OFF:             DB          $0D, $0A, "I T0 0 TIMER1 FREE-RUN: OFF", 0
 MSG_IT_USAGE:           DB          $0D, $0A
-                        DB          "USAGE: I T0 0 (OFF) | I T0 1 (ON) | I T0 7 | I T0 F | I T0 80", 0
+                        DB          "USAGE: I T0 0 (OFF) | I T0 1 (ON) | I T0 7 | I T0 F | I T0 8", 0
 MSG_II_ON:              DB          $0D, $0A, "I I 1 CPU IRQ: ENABLED", 0
 MSG_II_OFF:             DB          $0D, $0A, "I I 0 CPU IRQ: DISABLED", 0
 MSG_II_USAGE:           DB          $0D, $0A, "USAGE: I I 1 (ENABLE IRQ) | I I 0 (DISABLE IRQ)", 0
@@ -8899,7 +9321,22 @@ MSG_IM_OFF:             DB          $0D, $0A, "I M 0 MENU: OFF", 0
 MSG_IM_USAGE:           DB          $0D, $0A, "USAGE: I M 1 (ON) | I M 0 (OFF)", 0
 MSG_IX_READ:            DB          $0D, $0A, "I X READ_BYTE : $", 0
 MSG_IX_WRITE:           DB          $0D, $0A, "I X WRITE_BYTE: $", 0
-MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I X | I T0 [0|1|7|F|80] | I I [0|1] | I M [0|1] | I C <RPN>", 0
+MSG_IO_USAGE:           DB          $0D, $0A, "USAGE: I O A [I|R|T|B [9600|19200|115200]|D [HH]]", 0
+MSG_IOA_BASE:           DB          $0D, $0A, "I O A BASE   : $", 0
+MSG_IOA_STATUS:         DB          $0D, $0A, "I O A STATUS : $", 0
+MSG_IOA_COMMAND:        DB          $0D, $0A, "I O A CMD    : $", 0
+MSG_IOA_CONTROL:        DB          $0D, $0A, "I O A CTRL   : $", 0
+MSG_IOA_BAUD:           DB          $0D, $0A, "I O A BAUD   : ", 0
+MSG_IOA_BAUD_9600:      DB          "9600", 0
+MSG_IOA_BAUD_19200:     DB          "19200", 0
+MSG_IOA_BAUD_115200:    DB          "115200", 0
+MSG_IOA_BAUD_RAW:       DB          "RAW CTRL=$", 0
+MSG_IOA_DELAY:          DB          $0D, $0A, "I O A DELAY  : $", 0
+MSG_IOA_INIT:           DB          $0D, $0A, "I O A I ACIA INIT (SELECTED BAUD 8N1)", 0
+MSG_IOA_RESET:          DB          $0D, $0A, "I O A R ACIA PROGRAM RESET", 0
+MSG_IOA_TEST:           DB          $0D, $0A, "I O A T WROTE: UU ACIA TEST", 0
+MSG_IOA_TIMEOUT:        DB          $0D, $0A, "I O A T TIMEOUT (CHECK CTSB, WIRING, LEVEL)", 0
+MSG_I_USAGE:            DB          $0D, $0A, "USAGE: I | I A | I X | I T0 [0|1|7|F|8] | I I [0|1] | I M [0|1] | I O A [I|R|T|B [9600|19200|115200]|D [HH]] | I C <RPN>", 0
 MSG_MENU_PROMPT:        DB          "[MENU] TYPE M FOR COMMAND PANEL", $0D, $0A, 0
 MSG_MENU_PANEL:         DB          $0D, $0A
                         DB          "  1  A  ASSEMBLE", $0D, $0A

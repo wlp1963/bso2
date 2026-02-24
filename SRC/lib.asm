@@ -496,36 +496,36 @@ WRITE_BYTE:
                         BCC         ?WB_SEND_PRINTABLE
                         LDA         #$0D
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         LDA         #$0A
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         STZ         $7E ; TERM_CUR_COL
 ?WB_SEND_PRINTABLE:
                         PLA
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         INC         $7E ; TERM_CUR_COL
                         RTS
 
 ?WB_CR:
                         PLA
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         STZ         $7E ; TERM_CUR_COL
                         RTS
 
 ?WB_LF:
                         PLA
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         STZ         $7E ; TERM_CUR_COL
                         RTS
 
 ?WB_BS:
                         PLA
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         LDA         $7E ; TERM_CUR_COL
                         BEQ         ?WB_DONE
                         DEC         $7E ; TERM_CUR_COL
@@ -535,7 +535,7 @@ WRITE_BYTE:
 ?WB_RAW:
                         PLA
                         JSR         WDC_WRITE_BYTE
-                        JSR         PUT_LED
+;                       JSR         PUT_LED
                         RTS
 
                         ENDMOD

@@ -29,6 +29,25 @@ WDC_WRITE_BYTE          EQU         $F803 ; ROM SERIAL OUT
 WDC_READ_BYTE           EQU         $F806 ; ROM SERIAL IN
 WDC_CHECK_BYTE          EQU         $F809 ; ROM SERIAL STATUS
 
+; --- W65C51 ACIA REGISTERS ---
+ACIA                    EQU         $7F80 ; ACIA BASE ADDR
+ACIA_DATA               EQU         ACIA+0
+                                        ; RX DATA (READ) / TX DATA (WRITE)
+ACIA_STATUS             EQU         ACIA+1
+                                        ; STATUS (READ) / PROGRAM RESET (WRITE)
+ACIA_COMMAND            EQU         ACIA+2 ; COMMAND (READ/WRITE)
+ACIA_CONTROL            EQU         ACIA+3 ; CONTROL (READ/WRITE)
+
+; --- ACIA STATUS BIT MASKS ---
+ACIA_ST_IRQ_M           EQU         %10000000 ; IRQ FLAG
+ACIA_ST_DSRB_M          EQU         %01000000 ; DSRB INPUT STATE
+ACIA_ST_DCDB_M          EQU         %00100000 ; DCDB INPUT STATE
+ACIA_ST_TDRE_M          EQU         %00010000 ; TX DATA REG EMPTY
+ACIA_ST_RDRF_M          EQU         %00001000 ; RX DATA REG FULL
+ACIA_ST_OVRN_M          EQU         %00000100 ; OVERRUN
+ACIA_ST_FE_M            EQU         %00000010 ; FRAMING ERROR
+ACIA_ST_PE_M            EQU         %00000001 ; PARITY ERROR
+
 ; --- W65C21 PIA REGISTERS ---
 PIA                     EQU         $7FA0 ; PIA BASE ADDR
 PIA_PA                  EQU         PIA ; PORT A DATA

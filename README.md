@@ -1,8 +1,8 @@
 # bso2
 
-`bso2` is a serial monitor for the WDC `W65C02EDU` platform.
+- `bso2: serial monitor firmware for the W65C02SXB/EDU`
 
-It provides monitor commands, memory inspection/edit tools, mini-assembly/disassembly flow, debug/resume flow, and vector/IRQ sub-dispatch control for a 65C02-based system.
+It provides monitor commands, memory inspection/edit tools, mini-assembly/disassembly flow, debug/resume flow, and vector/IRQ sub-dispatch control for a 65C02-based system. It is a Proof Of Concept
 
 Demo first: [DOCS/demo_showcase.md](DOCS/demo_showcase.md)  
 Current release marker: `R0M0V2I01` (`I` = `INTERNAL`)
@@ -35,8 +35,10 @@ Current release marker: `R0M0V2I01` (`I` = `INTERNAL`)
 - S28 Support
 - Dynamically updatable vector chains for `RST/NMI` and `IRQ/BRK`
 - BRK debug context output with `CURR` / `NEXT` / `STATE` lines
-- Default runtime posture at boot: `I T0 1` (Timer1 free-run ON) and `I I 1` (CPU IRQ enabled)
+- Default runtime posture at boot: `I T0 F` (slow double-pulse heartbeat) and `I I 1` (CPU IRQ enabled)
 - EDU heartbeat timing: T0 base `122.0703125 Hz` (`8.192 ms`), LED overlay toggle `0.476837158 Hz` (~`2.097 s`/edge), full blink cycle `0.238418579 Hz` (~`4.194 s`)
+
+- Search output is richer than “hit/no hit”: each hit prints aligned hex+ASCII context, with a * marker when match spans rows. See bso2.asm#L5792, bso2.asm#L6035.
 
 ## Quick Start
 

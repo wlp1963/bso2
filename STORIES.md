@@ -44,6 +44,9 @@ Quoted guidance:
 - `2026-02-23`: Ponder command-grammar replacement (deferred, no implementation): move to strict `Family Verb [args]`, keep minimal families (`M` memory, `X` exec/debug, `I` inspect/config, `L` loaders, `H` help), reserve top-level singletons for global actions (`Z`, `Q`), keep permanent aliases for legacy commands, and enforce parser rule of only 1-2 command tokens before args.
 - `2026-02-23`: Add named vector-hook trampoline TODO (deferred): keep stable labels (`RST_*`, `NMI_*`, `BRK_*`, `HW_*`) as patch points, retarget by patching trampoline operands (not vector roots), and extend `V` output to print both symbolic hook name and current resolved target.
 - `2026-02-23`: Add system/user I/O state separation TODO (deferred): split monitor/system I/O state from user-program I/O state and define explicit save/restore boundaries for mode transitions and interrupt paths.
+- `2026-02-23`: Add `SRC/biorhythms.asm` userland app TODO (deferred): standalone program with DOB/target-date input and 23/28/33-day cycle output (text-first presentation).
+- `2026-02-23`: Parking-lot question: pretyped startup key (`C` seen before prompt) can still hang boot on hardware; revisit root cause in boot-input/ROM UART interaction and validate with on-target traces before reintroducing any RX flush logic.
+- `2026-02-24`: Add ACIA interrupt-driven serial TODO (deferred): replace TX busy-wait delay pacing with VIA timer-scheduled transmit service to work around 65C51 TX-data-register behavior, and evaluate optional ACIA RX interrupt + ring-buffer input path.
 
 ## Author History (Draft)
 
