@@ -252,7 +252,7 @@ SYS_RST:
                         JSR         INIT_SERIAL
                                         ; SERIAL READY FOR BOOT MESSAGES
                         JSR         INIT_LED ; LED PORT READY FOR WRITE_BYTE
-                        LDA         #'F' ; DEFAULT I T0 F (SLOW DOUBLE-PULSE)
+                        LDA         #'7' ; DEFAULT I T0 7 (FAST DOUBLE-PULSE)
                         STA         HEARTBEAT_MODE
                         JSR         VIA_T1_START_FREE
                                         ; DEFAULT: T0 HEARTBEAT ON (~122.07HZ)
@@ -1266,6 +1266,7 @@ STR_IOA_TEST_PAYLOAD:   DB          "UU ACIA TEST", $0D, $0A, 0
 ; ZP USED: NONE
 ; ----------------------------------------------------------------------------
 READ_BYTE:
+                        PHP
                         SEI
                         CLC
                         LDA         READ_BYTE_COUNT
@@ -1280,7 +1281,7 @@ READ_BYTE:
                         LDA         READ_BYTE_COUNT+3
                         ADC         #$00
                         STA         READ_BYTE_COUNT+3
-                        CLI
+                        PLP
                         JSR         WDC_READ_BYTE ; CALL ROM READ
                         RTS             ; RETURN TO CALLER
 
@@ -3038,6 +3039,7 @@ CMD_DO_INFO:
 
                         ; Snapshot WRITE counter before printing to avoid
                         ; self-count inflation while rendering I X output.
+                        PHP
                         SEI
                         LDA         WRITE_BYTE_COUNT
                         STA         PTR_LEG
@@ -3047,7 +3049,7 @@ CMD_DO_INFO:
                         STA         PTR_TEMP
                         LDA         WRITE_BYTE_COUNT+3
                         STA         PTR_TEMP+1
-                        CLI
+                        PLP
 
                         PRT_CSTRING MSG_IX_READ
                         LDA         READ_BYTE_COUNT+3
@@ -4226,23 +4228,41 @@ CMD_DO_LOAD_SREC:
                         JSR         READ_BYTE
                         JSR         UTIL_TO_UPPER
                         CMP         #'0'
-                        BEQ         ?LS_T0
+                        BNE         ?LS_CHK_1
+                        JMP         ?LS_T0
+?LS_CHK_1:
                         CMP         #'1'
-                        BEQ         ?LS_T1
+                        BNE         ?LS_CHK_2
+                        JMP         ?LS_T1
+?LS_CHK_2:
                         CMP         #'2'
-                        BEQ         ?LS_T2
+                        BNE         ?LS_CHK_3
+                        JMP         ?LS_T2
+?LS_CHK_3:
                         CMP         #'3'
-                        BEQ         ?LS_T3
+                        BNE         ?LS_CHK_5
+                        JMP         ?LS_T3
+?LS_CHK_5:
                         CMP         #'5'
-                        BEQ         ?LS_T5
+                        BNE         ?LS_CHK_6
+                        JMP         ?LS_T5
+?LS_CHK_6:
                         CMP         #'6'
-                        BEQ         ?LS_T6
+                        BNE         ?LS_CHK_7
+                        JMP         ?LS_T6
+?LS_CHK_7:
                         CMP         #'7'
-                        BEQ         ?LS_T7
+                        BNE         ?LS_CHK_8
+                        JMP         ?LS_T7
+?LS_CHK_8:
                         CMP         #'8'
-                        BEQ         ?LS_T8
+                        BNE         ?LS_CHK_9
+                        JMP         ?LS_T8
+?LS_CHK_9:
                         CMP         #'9'
-                        BEQ         ?LS_T9
+                        BNE         ?LS_CHK_X
+                        JMP         ?LS_T9
+?LS_CHK_X:
                         CMP         #'X'
                         BEQ         ?LS_USER_ABORT
                         PRT_CSTRING MSG_LS_TYPE_ERR
@@ -8087,7 +8107,7 @@ SYS_IRQ_HW_DISPATCH:
                         ; I T0 1: classic toggle each 256 ticks (~0.238 CPS full cycle)
                         ; I T0 7: heartbeat pattern (fast double pulse)
                         ; I T0 F: heartbeat pattern (slow double pulse)
-                        ; I T0 8: wig-wag PB0-3/PB4-7 at current T0 cadence
+                        ; I T0 8: wig-wag PA0-3/PA4-7 at current T0 cadence
                         LDA         HEARTBEAT_MODE
                         CMP         #'7'
                         BEQ         ?SIHD_MODE_7
@@ -8144,17 +8164,8 @@ SYS_IRQ_HW_DISPATCH:
 ?SIHD_SET_OFF:
                         STZ         HEARTBEAT_PHASE
 ?SIHD_HB_READY:
-                        LDA         HEARTBEAT_MODE
-                        CMP         #'8'
-                        BNE         ?SIHD_HB_BLEND
-                        LDA         HEARTBEAT_PHASE ; DIRECT WIG-WAG LED PATTERN
+                        LDA         HEARTBEAT_PHASE ; DIRECT LED PATTERN (NO PB BLEND)
                         STA         LED_DATA
-                        BRA         ?SIHD_EXIT
-?SIHD_HB_BLEND:
-                        LDA         PIA_PB ; SAMPLE PB0..PB7
-                        EOR         #$FF ; INVERT FOR LED DISPLAY
-                        EOR         HEARTBEAT_PHASE ; OVERLAY HEARTBEAT TOGGLE
-                        STA         LED_DATA ; WRITE INVERTED VALUE TO LEDS
 ?SIHD_EXIT:
                         PLA
 SYS_IRQ_HW_RTI:
@@ -9309,7 +9320,7 @@ MSG_I_ABOUT:            DB          $0D, $0A, "95west.us", 0
 MSG_IT_ON:              DB          $0D, $0A, "I T0 1 TIMER1 FREE-RUN: ON (~122.07HZ @8MHZ)", 0
 MSG_IT_7:               DB          $0D, $0A, "I T0 7 HEARTBEAT: FAST DOUBLE-PULSE", 0
 MSG_IT_F:               DB          $0D, $0A, "I T0 F HEARTBEAT: SLOW DOUBLE-PULSE", 0
-MSG_IT_8:               DB          $0D, $0A, "I T0 8 WIG-WAG: PB0-3/PB4-7 ALTERNATE", 0
+MSG_IT_8:               DB          $0D, $0A, "I T0 8 WIG-WAG: PA0-3/PA4-7 ALTERNATE", 0
 MSG_IT_OFF:             DB          $0D, $0A, "I T0 0 TIMER1 FREE-RUN: OFF", 0
 MSG_IT_USAGE:           DB          $0D, $0A
                         DB          "USAGE: I T0 0 (OFF) | I T0 1 (ON) | I T0 7 | I T0 F | I T0 8", 0

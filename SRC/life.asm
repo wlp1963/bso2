@@ -4,7 +4,7 @@
 ;
 ; LIFE.ASM
 ; Standalone Conway's Game of Life for W65C02EDU userland.
-; 8x8 toroidal board, text UI over serial.
+; 16x16 toroidal board, text UI over serial.
 ;
 ; Provenance:
 ; - Project-original implementation for this repository.
@@ -142,13 +142,12 @@ DRAW_BOARD:
         PLX
         INX
         TXA
-        AND #$07
+        AND #$0F
         BNE ?DB_NOLF
         PHX
         JSR PRT_CRLF
         PLX
 ?DB_NOLF:
-        CPX #$40
         BNE ?DB_LOOP
         RTS
 
@@ -158,10 +157,11 @@ STEP_LIFE:
         STX TMP_IDX
 
         TXA
-        AND #$07
+        AND #$0F
         STA TMP_X
 
         TXA
+        LSR A
         LSR A
         LSR A
         LSR A
@@ -198,7 +198,6 @@ STEP_LIFE:
         LDX TMP_IDX
         STA BOARD_NEXT,X
         INX
-        CPX #$40
         BNE ?SL_CELL
 
         ; Commit next generation.
@@ -207,7 +206,6 @@ STEP_LIFE:
         LDA BOARD_NEXT,X
         STA BOARD_CUR,X
         INX
-        CPX #$40
         BNE ?SL_COPY
         RTS
 
@@ -270,6 +268,7 @@ ADD_NEIGHBOR:
         ASL A
         ASL A
         ASL A
+        ASL A
         CLC
         ADC TMP_OFF
         TAY
@@ -286,7 +285,6 @@ CLEAR_BOARDS:
         STA BOARD_CUR,X
         STA BOARD_NEXT,X
         INX
-        CPX #$40
         BNE ?CB_LOOP
         RTS
 
@@ -302,36 +300,35 @@ RANDOMIZE_BOARD:
         AND #$01
         STA BOARD_CUR,X
         INX
-        CPX #$40
         BNE ?RB_LOOP
         RTS
 
 SEED_GLIDER:
         LDA #$01
         STA BOARD_CUR+1
-        STA BOARD_CUR+10
-        STA BOARD_CUR+16
-        STA BOARD_CUR+17
         STA BOARD_CUR+18
+        STA BOARD_CUR+32
+        STA BOARD_CUR+33
+        STA BOARD_CUR+34
         RTS
 
 SEED_BLINKER:
         LDA #$01
-        STA BOARD_CUR+26
-        STA BOARD_CUR+27
-        STA BOARD_CUR+28
+        STA BOARD_CUR+122
+        STA BOARD_CUR+123
+        STA BOARD_CUR+124
         RTS
 
-MSG_BANNER:             DB $0D,$0A,"=== LIFE 8x8 ===",$0D,$0A,"N/Enter=step  C=clear  G=glider  B=blinker  R=random  Q=break",$0D,$0A,0
+MSG_BANNER:             DB $0D,$0A,"=== LIFE 16x16 ===",$0D,$0A,"N/Enter=step  C=clear  G=glider  B=blinker  R=random  Q=break",$0D,$0A,0
 MSG_GEN:                DB $0D,$0A,"GEN $",0
 MSG_PROMPT:             DB $0D,$0A,"> ",0
 MSG_HELP_SHORT:         DB $0D,$0A,"Keys: N C G B R Q",0
 MSG_QUIT:               DB $0D,$0A,"BREAK",0
 
-X_LEFT_TAB:             DB 7,0,1,2,3,4,5,6
-X_RIGHT_TAB:            DB 1,2,3,4,5,6,7,0
-Y_UP_TAB:               DB 7,0,1,2,3,4,5,6
-Y_DOWN_TAB:             DB 1,2,3,4,5,6,7,0
+X_LEFT_TAB:             DB 15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14
+X_RIGHT_TAB:            DB 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0
+Y_UP_TAB:               DB 15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14
+Y_DOWN_TAB:             DB 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0
 
-BOARD_CUR:              DS 64
-BOARD_NEXT:             DS 64
+BOARD_CUR:              DS 256
+BOARD_NEXT:             DS 256

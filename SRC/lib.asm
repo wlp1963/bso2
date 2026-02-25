@@ -451,6 +451,7 @@ ADD_LE_BYTES_SAFE:
 ; ----------------------------------------------------------------------------
 WRITE_BYTE:
                         PHA
+                        PHP
                         SEI
                         CLC
                         LDA         WRITE_BYTE_COUNT
@@ -465,7 +466,7 @@ WRITE_BYTE:
                         LDA         WRITE_BYTE_COUNT+3
                         ADC         #$00
                         STA         WRITE_BYTE_COUNT+3
-                        CLI
+                        PLP
                         PLA
                         PHA
                         CMP         #$0D ; CR RESETS COLUMN TRACKING
