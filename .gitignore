@@ -1,0 +1,30 @@
+*.obj
+*.sym
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Build outputs
+*.bin
+*.map
+*.lst
+*.lib
+
+# Archives
+*.zip
+
+# Editor/OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Python cache noise
+__pycache__/
+*.pyc
+
+# Host helper build output
+/tools/bso2com/bso2com
+SRC/CONSOLE.asm
+*WDCMON*
