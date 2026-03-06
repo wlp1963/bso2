@@ -79,7 +79,7 @@ M = enter monitor</p>
     <tr><th style="width:15%">Cmd</th><th style="width:30%">Syntax</th><th style="width:35%">Behavior / Output</th><th style="width:20%">Flags / Notes</th></tr>
     <tr><td><code>?</code></td><td><code>?</code></td><td>Short help line.</td><td>Quick command list only.</td></tr>
     <tr><td><code>H</code></td><td><code>H [A|P|M|S]</code></td><td>Help index or scoped help sections.</td><td><code>H</code>=index, <code>H A</code>=all, <code>H P</code>=protection, <code>H M</code>=memory/tools, <code>H S</code>=steering.</td></tr>
-    <tr><td><code>Z</code></td><td><code>Z</code></td><td>Clear RAM after Y/N confirmation.</td><td>Zeroes <code>$0200-$7EFF</code>. Does not zero <code>$0000-$01FF</code> (ZP/stack) or <code>$7F00-$7FFF</code> (I/O area).</td></tr>
+    <tr><td><code>Z</code></td><td><code>Z</code></td><td>Reserved for future monitor use.</td><td>No action.</td></tr>
     <tr><td><code>T</code></td><td><code>T</code>, <code>T C</code>, <code>T 20|40|80|132</code></td><td>Terminal clear and width control.</td><td><code>T</code>/<code>T C</code>: emits <code>CR</code> then <code>LF</code> x127. Width applies to global output wrapping.</td></tr>
     <tr><td><code>D</code></td><td><code>D [START [END]]</code></td><td>Hex+ASCII dump. <code>END</code> is inclusive.</td><td><code>D</code> alone repeats last span from next address. Hex/ASCII fields show an 8+8 split.</td></tr>
     <tr><td><code>U</code></td><td><code>U [START END]</code></td><td>Disassemble as 65C02 mnemonics and operands.</td><td><code>END</code> is inclusive. Bare <code>U</code> repeats from saved next-instruction address. Emits <code>ADDR: MNM OPERAND</code>.</td></tr>

@@ -2403,7 +2403,7 @@ CMD_SAVE_LAST:
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_PROCESS_IF_READY
 ; DESCRIPTION: DISPATCHES A COMPLETED COMMAND LINE
-; COMMANDS: Z (CLEAR RAM), T (TERMINAL), C (COPY), M (MODIFY), D (DUMP), U
+; COMMANDS: T (TERMINAL), C (COPY), M (MODIFY), D (DUMP), U
 ; (DISASSEMBLE), A (ASSEMBLE), G (NUMBER GAME), R (RUN/RESUME),
 ; N (NEXT), F (FILL), S B / S C (SEARCH), L S / L B (SERIAL LOAD), I C (RPN),
 ; Q (WAIT), V (VECTORS), H/? (HELP)
@@ -5170,8 +5170,6 @@ DBG_RESUME_CONTEXT:
 ; TERMINATOR: DB $00
 ; ----------------------------------------------------------------------------
 CMD_TABLE:
-                        DB          'Z'
-                        DW          CMD_CONFIRM_CLEAR
                         DB          'T'
                         DW          CMD_DO_CLEAR_SCREEN
                         DB          'C'
@@ -5211,30 +5209,6 @@ CMD_TABLE:
                         DB          '+'
                         DW          CMD_DO_AUTOHELP_ON_ALIAS
                         DB          $00
-
-; ----------------------------------------------------------------------------
-; SUBROUTINE: CMD_CONFIRM_CLEAR
-; DESCRIPTION: COMMAND-MODE CLEAR CONFIRMATION (Y/N)
-; ----------------------------------------------------------------------------
-CMD_CONFIRM_CLEAR:
-                        LDA         #<MSG_CLR_CONFIRM
-                        LDX         #>MSG_CLR_CONFIRM
-                        JSR         BOOT_PRT_LABEL_FANOUT
-?CCC_WAIT_KEY:
-                        JSR         BOOT_READ_BYTE_ECHO_UPPER_FANOUT
-                        JSR         KEY_IS_Y
-                        BEQ         ?CCC_DO_CLEAR
-                        JSR         KEY_IS_N
-                        BEQ         ?CCC_CANCEL
-                        BRA         ?CCC_WAIT_KEY
-?CCC_DO_CLEAR:
-                        JSR         MEMCLR_CMD
-                        RTS
-?CCC_CANCEL:
-                        LDA         #<MSG_RAM_NOT_CLEARED
-                        LDX         #>MSG_RAM_NOT_CLEARED
-                        JSR         BOOT_PRT_LABEL_FANOUT
-                        RTS
 
 ; ----------------------------------------------------------------------------
 ; SUBROUTINE: CMD_DO_QUIT
@@ -9692,19 +9666,19 @@ MSG_BANNER_CSUM_SUFFIX: DB          " ****", $0D, $0A, $0D, $0A, 0
 OSI:                    DB          $0D, $0A, "C/W/M", 0
 OSI_CM:                 DB          $0D, $0A, "C/M", 0
 MSG_RESET_TRIGGERED:    DB          $0D, $0A, "RESET TRIGGERED", 0
-MSG_CLR_CONFIRM:        DB          $0D, $0A, "CLEAR MEMORY? (Y/N)", 0
 MSG_POWER_ON:           DB          $0D, $0A, "POWER ON", 0
 MSG_RAM_CLEARED:        DB          $0D, $0A, "RAM CLEARED", 0
+MSG_CLR_CONFIRM:        DB          $0D, $0A, "CLEAR MEMORY? (Y/N)", 0
+MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_WARMSTART:          DB          "WARMSTART", 0
 MSG_MONITORSTART:       DB          $0D, $0A, "MONITORSTART", 0
-MSG_RAM_NOT_CLEARED:    DB          $0D, $0A, "RAM NOT CLEARED", 0
 MSG_TERM_WIDTH_PROMPT:  DB          $0D, $0A
                         DB          "TERM WIDTH 2=20 4=40 8=80 1=132 [8]?", 0
 MSG_HELP_BOOT_SHORT:    DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q Z T  EXEC:G N R  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q T  EXEC:G N R  MEM:A C "
                         DB          "D F L M S U V", 0
 MSG_HELP_SHORT:         DB          $0D, $0A
-                        DB          "HELP:? H  CTRL:Q Z T  EXEC:G N R  MEM:A C "
+                        DB          "HELP:? H  CTRL:Q T  EXEC:G N R  MEM:A C "
                         DB          "D F L M S U V", 0
                         DB          $0D, $0A
                         DB          "PROT: ! FOR F/M/C/A/N/L  H A/P/M/S/-/+  "
@@ -9740,8 +9714,7 @@ MSG_HELP_FULL_6:        DB          $0D, $0A
                         DB          "  W                RESET MENU WARM (+HINTS)"
                         DB          0
 MSG_HELP_FULL_7:        DB          $0D, $0A
-                        DB          "  Z                CLEAR RAM (CONFIRM Y/"
-                        DB          "N)", 0
+                        DB          "  Z                RESERVED", 0
 MSG_HELP_FULL_38:       DB          $0D, $0A
                         DB          "  T [C|20|40|80|132] TERMINAL CLEAR / SET C"
                         DB          "S", 0
@@ -9914,7 +9887,7 @@ MSG_MENU_PANEL:         DB          $0D, $0A
                         DB          "  C  S  SEARCH", $0D, $0A
                         DB          "  D  T  TERMINAL", $0D, $0A
                         DB          "  E  U  UNASSEMBLE", $0D, $0A
-                        DB          "  F  Z  CLEAR RAM (CONFIRM)", $0D, $0A
+                        DB          "  F  Z  RESERVED", $0D, $0A
                         DB          "  Q     CANCEL", $0D, $0A, 0
 MSG_MENU_SELECT:        DB          "SELECT [1-9,A-F,Q]: ", 0
 MSG_MENU_BAD_KEY:       DB          $0D, $0A, "MENU: INVALID SELECTION", 0
