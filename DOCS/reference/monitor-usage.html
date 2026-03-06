@@ -1,0 +1,405 @@
+<!doctype html>
+<html>
+<head>
+  <!-- SPDX-License-Identifier: MIT -->
+  <!-- Copyright (c) 2026 95west.us -->
+  <!-- See LICENSE for full license text. -->
+  <meta charset="utf-8" />
+  <title>bso2 Monitor Usage</title>
+  <style>
+    body { font-family: Consolas, "Courier New", monospace; color: #111; margin: 32px; line-height: 1.35; font-size: 12px; }
+    h1, h2, h3 { margin: 0 0 8px 0; }
+    h1 { font-size: 24px; }
+    h2 { font-size: 17px; margin-top: 20px; }
+    h3 { font-size: 14px; margin-top: 16px; }
+    p { margin: 6px 0; }
+    .meta { color: #444; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px 0; table-layout: fixed; }
+    th, td { border: 1px solid #999; padding: 6px 8px; vertical-align: top; word-wrap: break-word; }
+    th { background: #eee; text-align: left; }
+    code { background: #f4f4f4; padding: 1px 3px; }
+    .mono { white-space: pre; }
+  </style>
+</head>
+<body>
+  <h1>bso2 Monitor Reference</h1>
+  <div class="meta">Target: W65C02EDU | Source: <code>SRC/bso2.asm</code> | Generated: 2026-03-05</div>
+
+  <h2>0) Naming</h2>
+  <p><code>bso2</code> is the preferred written form in this manual.</p>
+  <p>It is intentionally dual-meaning and retro-styled:</p>
+  <ul>
+    <li><code>b</code> = <code>6</code> = Basic</li>
+    <li><code>s</code> = <code>5</code> = System</li>
+    <li><code>o</code> = <code>0</code> = Operations</li>
+    <li><code>2</code> = <code>2</code> = <code>/2</code> (homage to IBM System/36)</li>
+  </ul>
+  <p>That makes <code>6502</code> a visual shorthand for <code>bso2</code>.</p>
+  <p>Expanded meaning: <code>Basic System Operations/2</code>.</p>
+  <p>Release marker format: <code>R#M#V#I##</code> where <code>I</code> means <code>INTERNAL</code>.</p>
+
+  <h2>1) Startup / Prompt Behavior</h2>
+  <p>On reset with valid reset cookie, boot choices are <code>C/W/M</code>:</p>
+  <p class="mono">C = clear RAM (confirm Y/N)
+W = warm start
+M = enter monitor</p>
+  <p>Power-on prompt uses <code>C/M</code> with a 6-second wait and <code>&gt;</code> tick markers; timeout defaults to <code>C</code>.</p>
+  <p>Reset-cookie prompt uses <code>C/W/M</code> with a 6-second wait and <code>&lt;</code> tick markers; LEDs blink every ~333ms while waiting and timeout defaults to <code>M</code>.</p>
+  <p>Boot-choice and clear-confirm prompts echo keypresses in uppercase.</p>
+  <h3>C/W/M Decision Truth Table</h3>
+  <table>
+    <tr><th style="width:26%">Condition</th><th style="width:18%">Input</th><th style="width:56%">Result</th></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td><code>C</code></td><td>Enter clear path.</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td><code>M</code></td><td>Enter monitor path.</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td>Timeout</td><td>Default to clear path (<code>C</code>).</td></tr>
+    <tr><td>Power-on (no valid reset cookie)</td><td>Invalid key</td><td>Ignored; prompt/countdown continues.</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>C</code></td><td>Enter clear confirmation prompt <code>Y/N</code>.</td></tr>
+    <tr><td>Clear confirmation</td><td><code>Y</code></td><td>Run clear-memory path.</td></tr>
+    <tr><td>Clear confirmation</td><td><code>N</code></td><td>Abort clear and continue warm path (<code>W</code>-equivalent branch).</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>W</code></td><td>Warm-recovery monitor path (no clear); may print terse restart hints.</td></tr>
+    <tr><td>Reset with valid cookie</td><td><code>M</code></td><td>Clean monitor path.</td></tr>
+    <tr><td>Reset with valid cookie</td><td>Invalid key</td><td>Ignored; prompt/countdown continues.</td></tr>
+    <tr><td>Reset with valid cookie</td><td>Timeout</td><td>Default to monitor path (<code>M</code>).</td></tr>
+  </table>
+  <p>Note: this is the default behavior for the currently installed vector trampolines/handlers; future trampolines or handlers may implement different startup policy.</p>
+  <p>Warm-recovery hints are advisory only; they do not auto-resume execution.</p>
+  <p>Default terminal width is <code>80</code> columns at reset.</p>
+  <p>Default runtime policy enables both <code>I T0 F</code> and <code>I I 1</code> at boot (slow double-pulse heartbeat, CPU IRQ enabled).</p>
+  <p>EDU LED heartbeat timing from Timer1: base <code>122.0703125 Hz</code> (period <code>8.192 ms</code>), overlay toggle <code>0.476837158 Hz</code> (~<code>2.097 s</code> per edge), full blink cycle <code>0.238418579 Hz</code> (~<code>4.194 s</code> period).</p>
+  <p>Runtime terminal control is via <code>T</code>: <code>T</code>/<code>T C</code> clears viewport; <code>T 20|40|80|132</code> sets wrap width.</p>
+  <p>Legacy width-prompt timeout byte remains pinned at <code>$007B</code> (<code>TERM_WIDTH_TIMEOUT</code>) for compatibility.</p>
+  <p>After clear/startup, the sign-on banner (<code>BSO2_INIT</code>) is printed:</p>
+  <p class="mono">     **** basic system operations/2 ****
+     ****     b s o / 2  R0M0V2I05 ****
+     ****         6 5 0 2           ****</p>
+  <p>Monitor prompt is a single <code>-</code> character on a new line.</p>
+
+  <h2>2) Command Summary</h2>
+  <table>
+    <tr><th style="width:15%">Cmd</th><th style="width:30%">Syntax</th><th style="width:35%">Behavior / Output</th><th style="width:20%">Flags / Notes</th></tr>
+    <tr><td><code>?</code></td><td><code>?</code></td><td>Short help line.</td><td>Quick command list only.</td></tr>
+    <tr><td><code>H</code></td><td><code>H [A|P|M|S]</code></td><td>Help index or scoped help sections.</td><td><code>H</code>=index, <code>H A</code>=all, <code>H P</code>=protection, <code>H M</code>=memory/tools, <code>H S</code>=steering.</td></tr>
+    <tr><td><code>Z</code></td><td><code>Z</code></td><td>Clear RAM after Y/N confirmation.</td><td>Zeroes <code>$0200-$7EFF</code>. Does not zero <code>$0000-$01FF</code> (ZP/stack) or <code>$7F00-$7FFF</code> (I/O area).</td></tr>
+    <tr><td><code>T</code></td><td><code>T</code>, <code>T C</code>, <code>T 20|40|80|132</code></td><td>Terminal clear and width control.</td><td><code>T</code>/<code>T C</code>: emits <code>CR</code> then <code>LF</code> x127. Width applies to global output wrapping.</td></tr>
+    <tr><td><code>D</code></td><td><code>D [START [END]]</code></td><td>Hex+ASCII dump. <code>END</code> is inclusive.</td><td><code>D</code> alone repeats last span from next address. Hex/ASCII fields show an 8+8 split.</td></tr>
+    <tr><td><code>U</code></td><td><code>U [START END]</code></td><td>Disassemble as 65C02 mnemonics and operands.</td><td><code>END</code> is inclusive. Bare <code>U</code> repeats from saved next-instruction address. Emits <code>ADDR: MNM OPERAND</code>.</td></tr>
+    <tr><td><code>A</code></td><td><code>A START [INSN]</code></td><td>Tiny 65C02 assembler, interactive at next address.</td><td>Example: <code>A 1000 LDA #FF</code> then prompt <code>A 1002:</code>. <code>.</code> exits. No labels/forward refs. Relative branches accept absolute hex targets and are range-checked. Explicit accumulator form like <code>INC A</code> is supported.</td></tr>
+    <tr><td><code>X</code></td><td><code>X</code></td><td>Reserved for future command family.</td><td>No active behavior in current firmware.</td></tr>
+    <tr><td><code>I</code></td><td><code>I</code>, <code>I A</code>, <code>I T0 [0|1|7|F|8]</code>, <code>I I [0|1]</code>,<br><code>I C &lt;RPN...&gt;</code> or <code>IC &lt;RPN...&gt;</code></td><td>Info root, about text, timer heartbeat toggle/query, IRQ mask toggle/query, or 16-bit hex RPN evaluation.</td><td><code>I T0</code>=show Timer1 heartbeat state, <code>I T0 1</code>=enable classic mode, <code>I T0 0</code>=disable, <code>I T0 7/F</code>=double-pulse modes, <code>I T0 8</code>=wig-wag mode. <code>I I</code>=show CPU IRQ mask state, <code>I I 1</code>=enable IRQ, <code>I I 0</code>=disable IRQ. Boot defaults are <code>I T0 F</code> and <code>I I 1</code>. RPN values are 1..4 hex digits (optional <code>$</code>), operators: <code>+ - * / &amp; | ^ ~</code>, output <code>I C = $HHHH</code>.</td></tr>
+    <tr><td><code>R</code></td><td><code>R START</code>, <code>R [A=HH] [X=HH] [Y=HH]</code>, or <code>!R START</code></td><td>Run or resume based on debug-context state.</td><td>If no debug context exists, <code>R START</code> executes from address. If debug context exists, bare <code>R</code> resumes via <code>RTI</code> with optional <code>A/X/Y</code> overrides; address-form prints <code>R CTX ACTIVE, R [A/X/Y=] or !R START</code> unless forced with <code>!R START</code>. NMI stops taken while already in monitor mode are informational only and do not leave resumable <code>R</code> context.</td></tr>
+    <tr><td><code>N</code></td><td><code>N</code></td><td>Run to next sequential instruction.</td><td>Implements next-stop by patching a temporary <code>BRK</code> at <code>PC+len(opcode)</code>. RAM only; ROM/I/O patch targets are rejected. Linear-only for now: branch/jump/RTI/RTS opcodes are rejected rather than stepped. Debug output labels synthetic step stops as <code>stop: STEP</code> and restores the original stepped-to instruction on the <code>curr:</code> line.</td></tr>
+    <tr><td><code>M</code></td><td><code>M [START [B0..B15]]</code></td><td>Modify/deposit memory. Inline deposit supports up to 16 bytes.</td><td>Interactive mode: <code>CR/LF = next</code>, <code>.</code> ends. CRLF pair counts as one next.</td></tr>
+    <tr><td><code>F</code></td><td><code>F START END B0[..B15]</code></td><td>Fill inclusive range with repeating 1..16 byte pattern.</td><td>No interactive mode. Verifies each write.</td></tr>
+    <tr><td><code>C</code></td><td><code>C SRC_START SRC_END DST_START</code></td><td>Copy inclusive source range to destination.</td><td>Overlap-safe (forward/backward selection). Verifies each write.</td></tr>
+    <tr><td><code>S</code></td><td><code>S B START END ...</code> or <code>S C START END TEXT</code></td><td>Search memory for byte patterns or text.</td><td>Prints hit address plus aligned row base context.</td></tr>
+    <tr><td><code>L</code></td><td><code>L S</code> | <code>L G S</code> | <code>L B ADDR LEN</code></td><td>Load Motorola S-records or raw bytes.</td><td><code>L G S</code>/<code>LGS</code> auto-jumps to the S7/S8/S9 start address after successful load.</td></tr>
+    <tr><td><code>!</code></td><td><code>!F ...</code>, <code>!M ...</code>, <code>!C ...</code>, <code>!A ...</code>, <code>!N</code>, <code>!R START</code></td><td>Force-prefix for protected commands and explicit run override.</td><td>Allows access to protected low RAM (<code>$0000-$0FFF</code>). For <code>R</code> with active context, <code>!R START</code> force-runs from address and drops old context.</td></tr>
+    <tr><td><code>Q</code></td><td><code>Q</code></td><td>Enter WAI halt loop.</td><td>IRQ masked. Resume by NMI (or Reset). NMI latch returns cleanly to monitor.</td></tr>
+    <tr><td><code>V</code></td><td><code>V</code></td><td>Show vector jump chains.</td><td>Spaced format: <code>RST: FFFC &gt; F818 &gt; 8004 &gt; A8CB &gt; [0080] &gt; 800D</code>. IRQ appends sub-dispatch lines: <code>BRK: XXXX &lt;name&gt;</code> and <code>HW: YYYY &lt;name&gt;</code>. Bracketed links use <code>[addr16]</code> and indicate a patchable 16-bit RAM trampoline address.</td></tr>
+  </table>
+
+  <h3>2.1) Reading <code>V</code> Output</h3>
+  <p>Example chain output:</p>
+  <p class="mono">RST: FFFC &gt; F818 &gt; 8004 &gt; A8CB &gt; [0080] &gt; 800D **RST_PLACEHOLDER**
+NMI: FFFA &gt; 8007 &gt; [0083] &gt; A8E8               **NMI_PLACEHOLDER**
+IRQ: FFFE &gt; 800A &gt; [0086] &gt; A941 &gt; BSO2_IRQ_BRK_HW_DISPATCH
+     BRK: [0089] &gt; A952 **BRK_PLACEHOLDER**
+     HW:  [008C] &gt; A980 **HW_PLACEHOLDER**</p>
+  <ul>
+    <li>Each <code>&gt;</code> is one control-transfer hop in the chain as traced by the monitor.</li>
+    <li><code>FFFC</code>, <code>FFFA</code>, and <code>FFFE</code> are fixed hardware vector locations (RST/NMI/IRQ+BRK).</li>
+    <li><code>F818</code> is the WDC ROM reset bridge; <code>8004</code>/<code>8007</code>/<code>800A</code> are monitor-side vector entry stubs.</li>
+    <li>Bracketed entries like <code>[0080]</code>, <code>[0083]</code>, <code>[0086]</code>, <code>[0089]</code>, <code>[008C]</code> are patchable RAM JMP trampolines in zero page.</li>
+    <li>Unbracketed high addresses (for example <code>A8CB</code>, <code>A8E8</code>, <code>A941</code>, <code>A952</code>, <code>A980</code>) are current resolved code targets and can move between builds.</li>
+    <li>The IRQ main line ends with <code>BSO2_IRQ_BRK_HW_DISPATCH</code> because IRQ first lands in a common front-end, then runtime-dispatches to BRK or hardware IRQ sub-hooks.</li>
+    <li>Design takeaway: high flexibility by design: one stable IRQ entry, two independently patchable sub-dispatch paths (BRK/HW).</li>
+    <li>The <code>**..._PLACEHOLDER**</code> suffixes are handler-name slots printed with each chain/sub-chain; in a fully named build they identify the currently bound handler symbol/name.</li>
+  </ul>
+
+  <h2>3) Interactive Caveats</h2>
+  <ul>
+    <li><code>M</code> interactive: two hex digits are required per byte write (00..FF).</li>
+    <li><code>A</code> interactive: type one mnemonic/operand per prompt, <code>.</code> exits assembler mode.</li>
+    <li><code>.</code> exits interactive modify and retains next-address state for subsequent <code>M</code>.</li>
+    <li><code>CR</code> or lone <code>LF</code> advances to next address.</li>
+    <li><code>CRLF</code> pair is consumed as a single next-step.</li>
+    <li><code>F</code> does not support interactive mode.</li>
+    <li>At an empty monitor prompt, <code>Up Arrow</code> (<code>ESC [ A</code>) repeats and executes the previous command.</li>
+    <li>Special repeat behavior: if the previous command was a <code>D ...</code> or <code>U ...</code> form, up-arrow replays bare <code>D</code>/<code>U</code>; <code>D</code> continues by saved span, <code>U</code> by saved next-instruction address.</li>
+    <li><code>F/M/C/A/N/L</code> block access to <code>$0000-$0FFF</code> unless prefixed with <code>!</code>. <code>D</code> is always allowed.</li>
+    <li>Direct vector-hook edits with <code>!M</code> are non-atomic and debug-only. Writing live bytes at <code>$0080-$0088</code> (especially <code>$0083-$0085</code>) can produce mixed-byte jumps, wrong dispatch, hangs/crashes, or temporary vector-name mismatch while patching.</li>
+    <li>Game ask hook (<code>GAME ASK</code>, older text: <code>POST ASK</code>) is sticky: when set, it prints at each prompt until cleared.</li>
+    <li>Hook flag is fixed/reserved at <code>$0078</code> (<code>GAME_ASK_PENDING</code>). Manual control: <code>!M 78 01</code> sets pending; <code>!M 78 00</code> clears pending.</li>
+    <li><code>GAME_ASK_PENDING</code> defaults to <code>01</code> only on power-on/invalid-cookie path; reset warm paths preserve current <code>$0078</code> value.</li>
+    <li>Terminal width byte is fixed/reserved at <code>$007A</code> (<code>TERM_COLS</code>): <code>14/28/50/84</code> for <code>20/40/80/132</code> columns.</li>
+    <li>Terminal-width prompt timeout byte is fixed/reserved at <code>$007B</code> (<code>TERM_WIDTH_TIMEOUT</code>): <code>00=wait forever</code>, <code>01-FF=seconds</code>, default <code>08</code>.</li>
+    <li>User ZP range is reserved at <code>$0090-$00FF</code>.</li>
+    <li>User-program origin policy: avoid <code>$0000-$0FFF</code> in normal operation (protected by default for write/execute-adjacent commands).</li>
+    <li>Input ring overflow is handled by dropping the in-flight line to end-of-line; monitor prints <code>INPUT OVERFLOW; LINE DROPPED</code> once after resync.</li>
+    <li>Minimum practical user-program origin is <code>$0800</code>.</li>
+    <li>Preferred default user-program origin is <code>$1000</code> (recommended for demos and monitor interoperability).</li>
+  </ul>
+
+  <h2>4) Verify / Error Outputs</h2>
+  <table>
+    <tr><th style="width:28%">Operation</th><th style="width:72%">Message / Behavior</th></tr>
+    <tr><td>Modify verify fail</td><td><code>M VERIFY FAILED AT ADDR </code> + failing address.</td></tr>
+    <tr><td>Fill verify fail</td><td><code>F VERIFY FAILED AT ADDR </code> + failing address.</td></tr>
+    <tr><td>Copy verify fail</td><td><code>C VERIFY FAILED AT ADDR </code> + failing address.</td></tr>
+    <tr><td>Dump range error</td><td><code>D RANGE ERROR</code>.</td></tr>
+    <tr><td>Unassemble range error</td><td><code>U RANGE ERROR</code>.</td></tr>
+    <tr><td>Assembler branch range error</td><td><code>A BRANCH RANGE ERROR</code>.</td></tr>
+    <tr><td>Debug stop output</td><td><code>JSR</code>, <code>NMI</code>, and <code>IRQ</code> print three lines: <code>stop:</code>, <code>next:</code>, and <code>regs:</code>. <code>BRK</code> and synthetic <code>N</code> step stops print four lines: <code>stop:</code>, <code>curr:</code>, <code>next:</code>, and <code>regs:</code>. For <code>N</code>-generated temporary breaks, the stop line reads <code>stop: STEP</code> and the <code>curr:</code> line shows the restored original instruction; true software breaks read <code>stop: BRK xx</code>.</td></tr>
+    <tr><td><code>R START</code> while context active</td><td><code>R CTX ACTIVE, R [A/X/Y=] or !R START</code>.</td></tr>
+    <tr><td>Bad syntax</td><td>Per-command usage lines (e.g. <code>USAGE: M [START [B0..B15]]</code>).</td></tr>
+  </table>
+
+  <h2>5) API Reference (Macros and Functions)</h2>
+  <p>Use this section when calling monitor functionality from your own assembly code.</p>
+  <p>Include model: prefer <code>INCLUDE EQUATES.INC</code> for monitor builds; <code>EQUATES.INC</code> automatically includes <code>MACROS.INC</code>.</p>
+
+  <h3>5.1) Macro Reference (<code>macros.inc</code>)</h3>
+  <table>
+    <tr><th style="width:18%">Macro</th><th style="width:30%">Parameters</th><th style="width:52%">Behavior / Notes</th></tr>
+    <tr><td><code>PUSH</code></td><td><code>PUSH p1 [,p2] [,p3] [,p4]</code></td><td>Pushes listed registers in given order. Supported tokens: <code>A/X/Y/P</code> (case-insensitive).</td></tr>
+    <tr><td><code>PULL</code></td><td><code>PULL p1 [,p2] [,p3] [,p4]</code></td><td>Pops listed registers in given order. Keep ordering compatible with prior <code>PUSH</code>.</td></tr>
+    <tr><td><code>REPEAT</code></td><td><code>REPEAT Routine, Count</code></td><td>Calls <code>JSR Routine</code> repeatedly <code>Count</code> times. Preserves <code>X</code> via push/pull.</td></tr>
+    <tr><td><code>PRT_CSTRING</code></td><td><code>PRT_CSTRING Label</code></td><td>Prints null-terminated string at <code>Label</code> via <code>PRT_C_STRING</code>.</td></tr>
+    <tr><td><code>DUMP</code></td><td><code>DUMP Start, EndExclusive</code></td><td>Convenience wrapper for <code>MEM_DUMP</code> with explicit exclusive end.</td></tr>
+    <tr><td><code>FILL</code></td><td><code>FILL Start, EndInclusive, B0 [,B1] [,B2] [,B3] [,B4]</code></td><td>Loads pattern bytes (1..5) and calls <code>MEM_FILL_PATTERN</code>. End is inclusive in macro syntax.</td></tr>
+    <tr><td><code>COPY</code></td><td><code>COPY SrcStart, SrcEndInclusive, DstStart</code></td><td>Calls overlap-safe <code>MEM_COPY_RANGE</code>. Source end is inclusive in macro syntax.</td></tr>
+    <tr><td><code>COPY_BLOCK</code></td><td><code>COPY_BLOCK SrcStart, Length, DstStart</code></td><td>Compatibility wrapper that expands to <code>COPY SrcStart,(SrcStart+Length-1),DstStart</code>.</td></tr>
+    <tr><td><code>CMP_CSTRING</code></td><td><code>CMP_CSTRING AddrA, AddrB</code></td><td>Wrapper for project-specific string compare symbols/routine (<code>STRCMP_PTR_*</code>, <code>STR_COMPARE</code>). Use only when those symbols are provided by your build.</td></tr>
+  </table>
+
+  <h3>5.2) Callable Function Reference</h3>
+  <p>Practical entry points for extensions and integration.</p>
+  <table>
+    <tr><th style="width:17%">Routine</th><th style="width:31%">Input</th><th style="width:20%">Output</th><th style="width:16%">Flags</th><th style="width:16%">ZP / Memory Use</th></tr>
+    <tr><td><code>INIT_SERIAL</code></td><td>None</td><td>UART initialized</td><td>Unchanged</td><td>None</td></tr>
+    <tr><td><code>WRITE_BYTE</code></td><td><code>A</code>=char</td><td>Char sent to UART, LED updated</td><td>Unchanged</td><td>None</td></tr>
+    <tr><td><code>READ_BYTE</code></td><td>None</td><td><code>A</code>=received char (ROM read)</td><td>ROM-defined</td><td>None</td></tr>
+    <tr><td><code>CHECK_BYTE</code></td><td>None</td><td><code>A</code>=status</td><td><code>C=1</code> if RX empty</td><td>None</td></tr>
+    <tr><td><code>RBUF_INIT</code></td><td>None</td><td>Input ring reset</td><td>Unchanged</td><td>Uses generic buffer descriptor core</td></tr>
+    <tr><td><code>BUF_INIT</code></td><td>Active descriptor pointers set</td><td>Head/Tail/Count zeroed</td><td>Unchanged</td><td>Uses <code>BUF_*_PTR</code></td></tr>
+    <tr><td><code>BUF_PUT_A</code></td><td><code>A</code>=byte</td><td>Byte queued</td><td><code>C=0</code> stored, <code>C=1</code> full</td><td>Uses <code>BUF_*_PTR</code>, <code>BUF_SIZE</code></td></tr>
+    <tr><td><code>BUF_GET_A</code></td><td>None</td><td><code>A</code>=byte</td><td><code>C=0</code> byte, <code>C=1</code> empty</td><td>Uses <code>BUF_*_PTR</code>, <code>BUF_SIZE</code></td></tr>
+    <tr><td><code>CMD_DISPATCH</code></td><td><code>A</code>=command letter</td><td>Handler called from table</td><td><code>C=0</code> handled, <code>C=1</code> unknown</td><td>Uses <code>CMD_TABLE</code>, <code>CMD_POST_ACTION</code></td></tr>
+    <tr><td><code>MEM_DUMP</code></td><td><code>PTR_DUMP_CUR</code>=start (inc), <code>PTR_TEMP</code>=end (exc)</td><td>Formatted hex+ASCII dump with 8+8 separator</td><td>Unchanged</td><td>Uses <code>PTR_DUMP_CUR</code>, <code>PTR_DUMP_END</code>, <code>PTR_LEG</code>, <code>MEM_DUMP_CNT</code></td></tr>
+    <tr><td><code>MEM_DISASM_65C02</code></td><td><code>PTR_DUMP_CUR</code>=start (inc), <code>PTR_TEMP</code>=end (inc)</td><td>65C02 disassembly output (<code>ADDR: MNM OPERAND</code>)</td><td>Unchanged</td><td>Uses <code>PTR_DUMP_CUR</code>, <code>PTR_DUMP_END</code>, <code>PTR_TEMP</code>, <code>PTR_LEG</code>, <code>DIS_*</code></td></tr>
+    <tr><td><code>MEM_FILL_PATTERN</code></td><td><code>PTR_DUMP_CUR</code>=start (inc), <code>PTR_DUMP_END</code>=end (exc), <code>F_COUNT</code>=pattern length, <code>F_PATTERN</code>=pattern bytes</td><td>Fills range with repeating pattern</td><td><code>C=0</code> complete, <code>C=1</code> aborted (verify/protect)</td><td>Uses <code>PTR_DUMP_CUR</code>, <code>PTR_DUMP_END</code>, <code>F_COUNT</code>, <code>F_PATTERN</code>, <code>F_PAT_IDX</code></td></tr>
+    <tr><td><code>MEM_COPY_RANGE</code></td><td><code>PTR_LEG</code>=src start (inc), <code>PTR_DUMP_END</code>=src end (exc), <code>PTR_TEMP</code>=dst start</td><td>Copies source to destination (overlap-safe)</td><td><code>C=0</code> complete, <code>C=1</code> aborted (verify/protect)</td><td>Uses <code>PTR_LEG</code>, <code>PTR_DUMP_CUR</code>, <code>PTR_DUMP_END</code>, <code>PTR_TEMP</code>, <code>CMD_PARSE_VAL</code></td></tr>
+    <tr><td><code>CMD_DO_ASM</code></td><td><code>CMD_LINE</code>=<code>A START [INSN]</code></td><td>Interactive tiny assembler</td><td><code>.</code> exits</td><td>Uses <code>CMD_LINE</code>, <code>PTR_TEMP</code>, opcode tables, and <code>ASM_*</code>/<code>DIS_*</code> scratch</td></tr>
+  </table>
+
+  <h2>6) Parser and Buffer Limits</h2>
+  <ul>
+    <li><code>CMD_MAX_LEN = 64</code> characters (excluding null terminator).</li>
+    <li><code>RBUF_SIZE = 32</code> bytes.</li>
+    <li>On ring overflow, input is resynchronized to CR/LF and the partial line is dropped.</li>
+    <li>One-command history is kept for up-arrow repeat (<code>CMD_LAST_LINE</code>).</li>
+    <li>Hex token parser accepts 1..4 hex digits, optional <code>$</code> prefix.</li>
+    <li><code>M</code> and <code>F</code> inline byte lists: max 16 bytes each.</li>
+    <li><code>!</code> is consumed as a command prefix, then normal parsing continues.</li>
+  </ul>
+
+  <h2>7) Memory Usage</h2>
+  <h3>Build Section Usage (current)</h3>
+  <table>
+    <tr><th>Section</th><th>ORG</th><th>Size (hex)</th><th>Size (dec)</th></tr>
+    <tr><td>PAGE0</td><td><code>$0030</code></td><td><code>$60</code></td><td>96</td></tr>
+    <tr><td>CODE</td><td><code>$8000</code></td><td><code>$416D</code></td><td>16749</td></tr>
+    <tr><td>KDATA</td><td><code>$C16D</code></td><td><code>$1BB9</code></td><td>7097</td></tr>
+    <tr><td>UDATA</td><td><code>$0200</code></td><td><code>$208</code></td><td>520</td></tr>
+    <tr><td>Total</td><td>-</td><td><code>$5F8E</code></td><td>24462</td></tr>
+  </table>
+
+  <h3>RAM Layout Highlights</h3>
+  <ul>
+    <li>PAGE0 starts at <code>$0030</code>. Includes parser state, dump state, debug snapshot, vector hooks, and active buffer descriptor pointers.</li>
+    <li>Guard policy reserves monitor PAGE0 through <code>$008F</code>; user ZP is reserved at <code>$0090-$00FF</code>.</li>
+    <li><code>KDATA</code> floats directly behind <code>CODE</code> (current build start: <code>$C16D</code>).</li>
+    <li>Fixed/pinned bytes: <code>GAME_ASK_PENDING=$0078</code>, <code>BRK_FLAG=$0079</code>, <code>TERM_COLS=$007A</code>, <code>TERM_WIDTH_TIMEOUT=$007B</code>, <code>RST_HOOK=$0080</code>, <code>NMI_HOOK=$0083</code>, <code>IRQ_HOOK=$0086</code>, <code>BRK_HOOK=$0089</code>, <code>HW_HOOK=$008C</code>.</li>
+    <li>Hardware vectors are fixed at the top page: <code>NMI=$FFFA</code>, <code>RST=$FFFC</code>, <code>IRQ/BRK=$FFFE</code>.</li>
+    <li>Detailed zero-page map: <a href="./zero-page-usage.md"><code>zero-page-usage.md</code></a> and <a href="./zero-page-usage.pdf"><code>zero-page-usage.pdf</code></a>.</li>
+    <li>UDATA starts at <code>$0200</code>:</li>
+  </ul>
+  <p class="mono">RBUF_DATA     32 bytes
+CMD_LINE      65 bytes (64 + NUL)
+CMD_LAST_LINE 65 bytes (64 + NUL)
+RESET_COOKIE   4 bytes
+RNG_STATE      1 byte
+F_PATTERN     16 bytes
+DBG_TAG_BUF    6 bytes</p>
+
+  <h2>8) Notes for Integrators</h2>
+  <ul>
+    <li>Command parser uppercases incoming command bytes before parse/dispatch.</li>
+    <li>Command execution is table-driven via <code>CMD_TABLE</code>.</li>
+    <li>Input buffering now uses a generic descriptor-based core bound to the ring buffer.</li>
+    <li><code>Q</code> path relies on NMI latch (<code>SYSF_NMI_FLAG_M</code>) and then re-enters monitor cleanly.</li>
+  </ul>
+
+  <h2>9) Planned Commands (Appendix, Provisional)</h2>
+  <p>This appendix documents planned command architecture and roadmap intent only.</p>
+  <p><strong>Proviso:</strong> change is constant. These plans are not stable API and may change before publish.</p>
+
+  <h3>9.1) Grammar Direction</h3>
+  <ul>
+    <li>Primary model: <code>noun verb [args...]</code> (namespace first, action second).</li>
+    <li>Direct-action commands may still exist where practical (for example jump/execute style flow).</li>
+    <li>Parser should accept both spaced and fused forms for operator speed.</li>
+  </ul>
+
+  <h3>9.2) Canonical Input Compatibility</h3>
+  <ul>
+    <li>Parser policy: token 1 selects namespace and remains locked for that line (no cross-namespace fallback).</li>
+    <li><code>X S</code> and <code>XS</code> should map to the same internal command key.</li>
+    <li><code>X R</code> and <code>XR</code> should map to the same internal command key.</li>
+    <li><code>M D</code> and <code>MD</code> should map to the same internal command key.</li>
+    <li><code>I O V</code> and <code>IOV</code> should map to the same internal command key.</li>
+    <li><code>I C</code> and <code>IC</code> should map to the same internal command key.</li>
+    <li>One canonical dispatch representation is preferred to avoid duplicate handlers.</li>
+    <li>Aliases are spelling variants only (same meaning); command override behavior is intentionally avoided.</li>
+  </ul>
+
+  <h3>9.3) Namespace Plan</h3>
+  <table>
+    <tr><th style="width:14%">Root</th><th style="width:30%">Planned Role</th><th style="width:56%">Notes</th></tr>
+    <tr><td><code>B</code></td><td>Bank / FLASH</td><td>Reserved for FLASH-related operations (read/program/erase/verify family).</td></tr>
+    <tr><td><code>I</code></td><td>Info root</td><td>Carries nested subfamilies such as time and I/O.</td></tr>
+    <tr><td><code>I T</code></td><td>Time</td><td>Time remains planned under Info; top-level <code>T</code> is active for terminal operations (clear + width).</td></tr>
+    <tr><td><code>I C</code></td><td>Calculator</td><td>Implemented baseline (<code>I C</code>/<code>IC</code>) with 16-bit hex RPN tokens; future expansion remains planned.</td></tr>
+    <tr><td><code>T</code></td><td>Terminal</td><td>Repurposed top-level namespace for terminal-related operations.</td></tr>
+    <tr><td><code>I O P</code></td><td>PIA</td><td>Top-level <code>P</code> is freed; PIA moves under Info/IO.</td></tr>
+    <tr><td><code>I O V</code></td><td>VIA</td><td>Top-level <code>V</code> is freed; VIA moves under Info/IO.</td></tr>
+    <tr><td><code>I O V T</code></td><td>VIA timers</td><td>Hardware timers are expected under VIA tree.</td></tr>
+    <tr><td><code>J</code></td><td>Jump / Execute</td><td>Preferred home for execute flow if top-level execute letter changes.</td></tr>
+    <tr><td><code>X</code></td><td>Transfer / XMODEM</td><td>At minimum: send and receive support.</td></tr>
+    <tr><td><code>S</code></td><td>Search</td><td>Text and binary search families.</td></tr>
+    <tr><td><code>M</code></td><td>Memory family</td><td>Supports compact forms such as <code>MD</code>/<code>MM</code> as aliases.</td></tr>
+    <tr><td><code>O</code></td><td>Deferred decision</td><td>Candidate: chained execution wrapper; decision postponed.</td></tr>
+  </table>
+
+  <h3>9.4) Planned Debug Stepping Model</h3>
+  <p>This section is roadmap intent only. It does not describe current released command behavior.</p>
+  <ul>
+    <li><strong>Current state:</strong> <code>N</code> is implemented as RAM-only next/step-over using a temporary patched <code>BRK</code>. ROM and I/O targets are currently rejected.</li>
+    <li><strong>Planned semantic split:</strong> <code>N</code> remains <em>next</em> (step-over); a future <em>step-into</em> command is planned as <code>S</code> in debugger terminology.</li>
+    <li><strong>Naming collision note:</strong> top-level <code>S</code> is already active as <code>Search</code>, so any future debugger <code>S</code> spelling is provisional. Likely homes are namespaced forms such as <code>X S</code>/<code>XS</code> if top-level <code>S</code> remains search.</li>
+  </ul>
+
+  <table>
+    <tr><th style="width:14%">Planned Command</th><th style="width:22%">Intended Meaning</th><th style="width:64%">Intended Stop Behavior</th></tr>
+    <tr><td><code>N</code></td><td>Next / step-over</td><td>Runs until the next instruction in the current frame. For a <code>JSR</code>, execution enters the subroutine, runs it completely, returns via <code>RTS</code>, and then stops at the instruction immediately after the call site.</td></tr>
+    <tr><td><code>S</code></td><td>Step / step-into</td><td>Runs until the next executed instruction. For a <code>JSR</code>, execution stops at the first instruction of the callee rather than after the later <code>RTS</code>.</td></tr>
+  </table>
+
+  <h3>9.5) Planned ROM/I/O-Capable Stepping</h3>
+  <p>This section documents the intended user-visible behavior of future stepping in ROM/I/O regions. Mechanism remains undecided.</p>
+  <ul>
+    <li><strong>Current limitation:</strong> patched-<code>BRK</code> stepping requires writable target memory, so present-day <code>N</code> rejects ROM/I/O targets.</li>
+    <li><strong>Future goal:</strong> preserve the same <code>N</code>=step-over and <code>S</code>=step-into semantics even when the current instruction or destination lies in ROM or I/O space.</li>
+    <li><strong>Design constraint:</strong> ROM-capable stepping must not depend on overwriting the target opcode bytes in place.</li>
+    <li><strong>User contract goal:</strong> debug output format and stop classification should stay consistent across RAM and ROM stepping paths (for example <code>stop: STEP</code> plus the same <code>curr:</code>/<code>next:</code>/<code>regs:</code> lines).</li>
+    <li><strong>Mechanism status:</strong> implementation strategy is intentionally not fixed yet; possible approaches include trampoline, return-site, or vector-assisted techniques.</li>
+  </ul>
+
+  <h3>9.6) Search Family Detail</h3>
+  <ul>
+    <li>Planned base forms: <code>S C START END &lt;text&gt;</code> and <code>S B START END &lt;pattern...&gt;</code>.</li>
+    <li>Current hit display format is <code>&lt;HIT_ADDR&gt;{ |*}&lt;ROW_BASE&gt;: ...</code>; <code>HIT_ADDR</code> is exact match start, and <code>ROW_BASE = HIT_ADDR &amp; $FFF0</code>.</li>
+    <li>Separator marker: <code>*</code> means the match continues into the next 16-byte row (for example <code>$B8AF*$B8A0</code> implies continuation at <code>$B8B0</code>).</li>
+    <li><code>S C</code> mode: unquoted text stops at first whitespace.</li>
+    <li><code>S C</code> mode: quoted delimiters can include <code>"</code>, <code>'</code>, and <code>`</code>.</li>
+    <li><code>S C</code> mode: delimiter escape by doubling delimiter character.</li>
+    <li><code>S C</code> mode wildcards: <code>?</code> matches exactly one character, <code>*</code> matches zero or more characters.</li>
+    <li><code>S C</code> mode literals: <code>??</code> matches literal <code>?</code>, and <code>**</code> matches literal <code>*</code>.</li>
+    <li><code>S B</code> mode tokens: <code>HH</code> byte, <code>HHHH</code> little-endian word, nibble wildcard (<code>?A</code>/<code>A?</code>/<code>??</code>), and <code>*</code> byte wildcard.</li>
+    <li>Candidate extensions: Pascal strings and high-bit-set text search modes.</li>
+  </ul>
+
+  <h3>9.7) XMODEM Requirement</h3>
+  <ul>
+    <li>Before publish, provide both XMODEM receive and send paths.</li>
+    <li>Preferred forms: <code>X R ...</code> and <code>X S ...</code> with fused aliases (<code>XR</code>, <code>XS</code>).</li>
+  </ul>
+
+  <h3>9.8) Vector + Safety Direction (Pre-Publish Requirement)</h3>
+  <ul>
+    <li>Vector updates must support dynamic atomic update behavior.</li>
+    <li>Handler-name contract direction: every patchable target exports <code>&lt;HANDLER&gt;</code> and <code>&lt;HANDLER&gt;_NAME</code> (ASCIIZ); retarget operations update target address and name pointer together.</li>
+    <li>Critical windows include vector commit and FLASH routines.</li>
+    <li>During critical windows, all EDU LEDs should flash to signal that NMI should not be pressed.</li>
+    <li>NMI path should be guarded/deferred during critical windows instead of normal debug flow.</li>
+    <li>Staged-update plus atomic-commit behavior is the intended implementation pattern.</li>
+    <li>NMI retargeting direction: patch inactive slot fully, then commit via single-byte active-slot selector flip (no in-place live NMI hook rewrite).</li>
+    <li>Direct <code>!M</code> edits to live vector hook bytes are allowed for bring-up/debug but are intentionally outside the production-safe retarget path.</li>
+    <li>Mandate (non-changing requirement): any operation that mutates FLASH state or vector state must assert critical indication/guard behavior, including module/transient load paths; implementation detail may change, requirement does not.</li>
+  </ul>
+
+  <h3>9.9) Deferred Item</h3>
+  <ul>
+    <li><code>O</code> command semantics are intentionally deferred.</li>
+    <li>If adopted as an operation chain wrapper, error policy and guard policy must be defined explicitly.</li>
+  </ul>
+
+  <h3>9.10) Active TODO (Pressing)</h3>
+  <h4>Now</h4>
+  <ul>
+    <li>TODO: add a post-link map check that enforces <code>END_KDATA &lt; $F000</code>.</li>
+  </ul>
+
+  <h4>Soon</h4>
+  <ul>
+    <li>TODO: get the ACIA port on the EDU board running.</li>
+  </ul>
+
+  <h4>Before Publish</h4>
+  <ul>
+    <li>TODO: provide XMODEM receive and send paths before publish (<code>X R</code>/<code>XR</code>, <code>X S</code>/<code>XS</code>).</li>
+    <li>TODO: implement staged vector update plus atomic commit flow for runtime retargeting.</li>
+    <li>TODO: enforce critical-window behavior for FLASH/vector mutation paths (LED warning plus NMI guard/defer).</li>
+    <li>TODO: enforce dangerous <code>B</code> operation policy (<code>!</code> required, explicit confirmation, and fail-closed behavior without mutation).</li>
+    <li>TODO: add deterministic status reporting for dangerous operations (status code byte plus <code>OK</code>/<code>ABORTED</code>/<code>VERIFY_FAIL</code>/<code>FLASH_FAIL</code>/<code>DENIED</code>).</li>
+    <li>Deferred (not current TODO): text compression/decompression, tokenization/RLE, and TX ring architecture while 32K FLASH headroom is sufficient.</li>
+  </ul>
+
+  <h3>9.11) Flash / Bank Safety Policy (Critical, Non-Negotiable)</h3>
+  <ul>
+    <li><code>B</code> must not execute dangerous operations by default.</li>
+    <li>Integration intent is behavioral/protocol compatibility via wrapper entry points, not direct source-text copy.</li>
+    <li>Any dangerous <code>B</code> operation requires both force-prefix <code>!</code> and explicit user confirmation.</li>
+    <li>Dangerous operations include at minimum erase, program/write, monitor self-update, vector commit, and bank activation/commit transitions.</li>
+    <li>If <code>!</code> is absent, dangerous operations fail closed with no side effects.</li>
+    <li>Confirmation must be operation-specific (typed intent token), not an implicit continue.</li>
+    <li>During dangerous operations: enter critical guard mode before mutation starts, flash all LEDs, and guard/defer NMI debug flow until critical mode exits.</li>
+    <li>On verify/check failure: abort mutation, exit critical mode cleanly, and report explicit status.</li>
+    <li>Required output for dangerous operations: status code byte plus textual result (<code>OK</code>, <code>ABORTED</code>, <code>VERIFY_FAIL</code>, <code>FLASH_FAIL</code>, <code>DENIED</code>).</li>
+  </ul>
+
+  <h3>9.12) Board Self-Update Policy</h3>
+  <ul>
+    <li>Board self-update is always dangerous and always requires <code>!</code> plus explicit confirmation.</li>
+    <li>Before final commit, display target region, byte count, and integrity value (checksum/hash when available).</li>
+    <li>Preferred execution shape: preflight validation, stage payload, erase/program, verify, then commit/activate.</li>
+    <li>Avoid in-place blind overwrite as the only strategy; preserve a recovery path.</li>
+    <li>Self-update is fully covered by the non-changing mandate: any FLASH/vector mutation path (including module/transient load/activation) must assert critical indication and guard behavior.</li>
+  </ul>
+
+  <h3>9.13) Host Tooling Direction (Linux GNU C)</h3>
+  <ul>
+    <li>Critical FLASH workflows are expected to have a Linux GNU C host path.</li>
+    <li>Python helpers may exist for convenience, but they are not the required path for critical FLASH operations.</li>
+    <li>Preferred host model: raw serial protocol wrappers in C with explicit timeout/error handling and deterministic status reporting.</li>
+  </ul>
+
+  <h2>10) Legal Notice</h2>
+  <ul>
+    <li><code>WDC</code>, <code>W65C02</code>, and <code>W65C02EDU</code> are names associated with Western Design Center, Inc.</li>
+    <li>This project is independent and is not affiliated with or endorsed by Western Design Center, Inc.</li>
+    <li>This repository does not redistribute WDC tool binaries or WDC ROM images.</li>
+    <li>Any third-party source code or text should be included only under its original license terms.</li>
+  </ul>
+</body>
+</html>
